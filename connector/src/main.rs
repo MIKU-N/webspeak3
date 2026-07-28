@@ -15,8 +15,8 @@ use tsclientlib::events::Event as BookEvent;
 use tsclientlib::messages::c2s::{OutClientPokeRequestPart, OutSendTextMessagePart};
 use tsclientlib::prelude::*;
 use tsclientlib::{
-	data, ChannelId, ClientId, Connection, DisconnectOptions, MessageHandle, MessageTarget,
-	StreamItem, TextMessageTargetMode,
+	data, ChannelId, ClientId, Connection, DisconnectOptions, MaxClients, MessageHandle,
+	MessageTarget, StreamItem, TextMessageTargetMode,
 };
 use tsproto_packets::packets::{AudioData, CodecType, OutAudio};
 
@@ -47,6 +47,10 @@ struct ChannelInfo {
 	parent: u64,
 	order: u64,
 	name: String,
+	topic: String,
+	codec: String,
+	max_clients: Option<u16>,
+	has_password: bool,
 }
 
 #[derive(Serialize)]
@@ -65,7 +69,7 @@ struct ClientInfo {
 #[serde(tag = "type")]
 enum Event {
 	#[serde(rename = "connected")]
-	Connected { welcome_message: String },
+	Connected { welcome_message: String, server_name: String, server_max_clients: u16 },
 	#[serde(rename = "channels")]
 	Channels { channels: Vec<ChannelInfo>, clients: Vec<ClientInfo> },
 	#[serde(rename = "chatMessage")]
@@ -144,6 +148,13 @@ fn snapshot(con: &data::Connection) -> Event {
 			parent: ch.parent.0,
 			order: *order.get(&ch.id.0).unwrap_or(&0),
 			name: ch.name.clone(),
+			topic: ch.topic.clone().unwrap_or_default(),
+			codec: format!("{:?}", ch.codec),
+			max_clients: match ch.max_clients {
+				Some(MaxClients::Limited(n)) => Some(n),
+				_ => None,
+			},
+			has_password: ch.has_password.unwrap_or(false),
 		})
 		.collect();
 	let clients = con
@@ -227,8 +238,11 @@ async fn run(args: Args) -> Result<()> {
 		}
 	}
 
-	let welcome_message = con.get_state()?.server.welcome_message.clone();
-	emit(&Event::Connected { welcome_message });
+	let server_state = con.get_state()?;
+	let welcome_message = server_state.server.welcome_message.clone();
+	let server_name = server_state.server.name.clone();
+	let server_max_clients = server_state.server.max_clients;
+	emit(&Event::Connected { welcome_message, server_name, server_max_clients });
 
 	// Subscribe to all channels so we actually receive the full channel/client list.
 	con.get_state()?.server.set_subscribed(true).send(&mut con)?;

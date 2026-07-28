@@ -15,6 +15,10 @@ export interface ChannelInfo {
   parent: number;
   order: number;
   name: string;
+  topic: string;
+  codec: string;
+  maxClients: number | null;
+  hasPassword: boolean;
 }
 
 export interface ClientInfo {
@@ -29,7 +33,7 @@ export interface ClientInfo {
 }
 
 export type Ts3ConnectionEvent =
-  | { type: "connected"; welcomeMessage: string }
+  | { type: "connected"; welcomeMessage: string; serverName: string; serverMaxClients: number }
   | { type: "channels"; channels: ChannelInfo[]; clients: ClientInfo[] }
   | { type: "chatMessage"; from: string; message: string }
   | { type: "serverMessage"; from: string; message: string }
@@ -87,9 +91,20 @@ export class Ts3Connection {
           is_channel_commander: boolean;
         }
 
+        interface RawChannelInfo {
+          id: number;
+          parent: number;
+          order: number;
+          name: string;
+          topic: string;
+          codec: string;
+          max_clients: number | null;
+          has_password: boolean;
+        }
+
         const event = JSON.parse(line) as
-          | { type: "connected"; welcome_message: string }
-          | { type: "channels"; channels: ChannelInfo[]; clients: RawClientInfo[] }
+          | { type: "connected"; welcome_message: string; server_name: string; server_max_clients: number }
+          | { type: "channels"; channels: RawChannelInfo[]; clients: RawClientInfo[] }
           | { type: "chatMessage"; from: string; message: string }
           | { type: "serverMessage"; from: string; message: string }
           | { type: "privateMessage"; partner_id: number; partner_name: string; from_self: boolean; message: string }
@@ -100,11 +115,25 @@ export class Ts3Connection {
           | { type: "error"; message: string };
 
         if (event.type === "connected") {
-          this.emit({ type: "connected", welcomeMessage: event.welcome_message });
+          this.emit({
+            type: "connected",
+            welcomeMessage: event.welcome_message,
+            serverName: event.server_name,
+            serverMaxClients: event.server_max_clients,
+          });
         } else if (event.type === "channels") {
           this.emit({
             type: "channels",
-            channels: event.channels,
+            channels: event.channels.map((ch) => ({
+              id: ch.id,
+              parent: ch.parent,
+              order: ch.order,
+              name: ch.name,
+              topic: ch.topic,
+              codec: ch.codec,
+              maxClients: ch.max_clients,
+              hasPassword: ch.has_password,
+            })),
             clients: event.clients.map((c) => ({
               id: c.id,
               channel: c.channel,

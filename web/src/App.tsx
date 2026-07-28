@@ -21,7 +21,13 @@ interface ChannelInfo {
   parent: number;
   order: number;
   name: string;
+  topic: string;
+  codec: string;
+  maxClients: number | null;
+  hasPassword: boolean;
 }
+
+type SelectedItem = { type: "server" } | { type: "channel"; id: number };
 
 interface ClientInfo {
   id: number;
@@ -85,7 +91,9 @@ function ChannelTree({
   parent,
   ownClientId,
   talkers,
-  onSelectChannel,
+  selected,
+  onSelectItem,
+  onSwitchChannel,
   onOpenPrivateChat,
   onPokeClient,
 }: {
@@ -94,7 +102,9 @@ function ChannelTree({
   parent: number;
   ownClientId: number | null;
   talkers: Set<number>;
-  onSelectChannel: (channelId: number) => void;
+  selected: SelectedItem | null;
+  onSelectItem: (item: SelectedItem) => void;
+  onSwitchChannel: (channelId: number) => void;
   onOpenPrivateChat: (clientId: number, clientName: string) => void;
   onPokeClient: (clientId: number, clientName: string) => void;
 }) {
@@ -105,9 +115,17 @@ function ChannelTree({
     <ul className="ts-tree-list">
       {children.map((channel) => (
         <li key={channel.id}>
-          <div className="ts-row ts-channel-row" onClick={() => onSelectChannel(channel.id)}>
+          <div
+            className={`ts-row ts-channel-row${
+              selected?.type === "channel" && selected.id === channel.id ? " ts-row-selected" : ""
+            }`}
+            onClick={() => onSelectItem({ type: "channel", id: channel.id })}
+            onDoubleClick={() => onSwitchChannel(channel.id)}
+            title="Click to select, double-click to join"
+          >
             <ChannelIcon />
             <span>{channel.name}</span>
+            {channel.hasPassword && <span title="Password protected">🔒</span>}
           </div>
           <ul className="ts-tree-list">
             {clients
@@ -146,13 +164,74 @@ function ChannelTree({
             parent={channel.id}
             ownClientId={ownClientId}
             talkers={talkers}
-            onSelectChannel={onSelectChannel}
+            selected={selected}
+            onSelectItem={onSelectItem}
+            onSwitchChannel={onSwitchChannel}
             onOpenPrivateChat={onOpenPrivateChat}
             onPokeClient={onPokeClient}
           />
         </li>
       ))}
     </ul>
+  );
+}
+
+function InfoPanel({
+  selected,
+  host,
+  serverName,
+  serverMaxClients,
+  totalClientCount,
+  channels,
+  clients,
+}: {
+  selected: SelectedItem | null;
+  host: string;
+  serverName: string;
+  serverMaxClients: number;
+  totalClientCount: number;
+  channels: ChannelInfo[];
+  clients: ClientInfo[];
+}) {
+  if (!selected || selected.type === "server") {
+    return (
+      <div className="ts-info-panel">
+        <div className="ts-info-title">
+          <ServerIcon />
+          <span>{serverName || host}</span>
+        </div>
+        <div className="ts-info-row">
+          <span>Clients:</span> <span>{totalClientCount} / {serverMaxClients || "∞"}</span>
+        </div>
+      </div>
+    );
+  }
+
+  const channel = channels.find((c) => c.id === selected.id);
+  if (!channel) return <div className="ts-info-panel" />;
+  const clientCount = clients.filter((c) => c.channel === channel.id).length;
+
+  return (
+    <div className="ts-info-panel">
+      <div className="ts-info-title">
+        <ChannelIcon />
+        <span>{channel.name}</span>
+      </div>
+      {channel.topic && (
+        <div className="ts-info-row">
+          <span>Topic:</span> <span>{channel.topic}</span>
+        </div>
+      )}
+      <div className="ts-info-row">
+        <span>Audio Codec:</span> <span>{channel.codec}</span>
+      </div>
+      <div className="ts-info-row">
+        <span>Password protected:</span> <span>{channel.hasPassword ? "Yes" : "No"}</span>
+      </div>
+      <div className="ts-info-row">
+        <span>Clients:</span> <span>{clientCount} / {channel.maxClients ?? "∞"}</span>
+      </div>
+    </div>
   );
 }
 
@@ -193,6 +272,9 @@ function App() {
   const [connectError, setConnectError] = useState<string | null>(null);
   const [channels, setChannels] = useState<ChannelInfo[]>([]);
   const [clients, setClients] = useState<ClientInfo[]>([]);
+  const [serverName, setServerName] = useState("");
+  const [serverMaxClients, setServerMaxClients] = useState(0);
+  const [selected, setSelected] = useState<SelectedItem | null>(null);
   const [chat, setChat] = useState<ChatEntry[]>([]);
   const [serverChat, setServerChat] = useState<ChatEntry[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -300,6 +382,9 @@ function App() {
           setConnected(true);
           localStorage.setItem(LAST_HOST_KEY, host);
           localStorage.setItem(LAST_NICKNAME_KEY, nickname);
+          setServerName(data.serverName);
+          setServerMaxClients(data.serverMaxClients);
+          setSelected({ type: "server" });
           setServerChat((prev) => [...prev, { from: "Server", message: data.welcomeMessage }]);
           break;
         case "channels":
@@ -350,6 +435,7 @@ function App() {
           setConnected(false);
           setChannels([]);
           setClients([]);
+          setSelected(null);
           setChat([]);
           setServerChat([]);
           setPmThreads({});
@@ -432,9 +518,11 @@ function App() {
     }
   };
 
-  const handleSelectChannel = (channelId: number) => {
+  const handleSwitchChannel = (channelId: number) => {
     socketRef.current?.send(JSON.stringify({ type: "switchChannel", channelId }));
   };
+
+  const handleSelectItem = (item: SelectedItem) => setSelected(item);
 
   const handleSendChat = () => {
     const message = chatInput.trim();
@@ -486,69 +574,40 @@ function App() {
 
   return (
     <div className={`ts-app ts-theme-${theme}`}>
+      <div className="ts-menubar">
+        {["Verbindungen", "Favoriten", "Selbst", "Rechte", "Extras", "Hilfe"].map((item) => (
+          <span key={item} className="ts-menubar-item">
+            {item}
+          </span>
+        ))}
+      </div>
+
       <div className="ts-toolbar">
-        <span className="ts-app-title">TS Web Client</span>
-        <div className="ts-toolbar-fields">
-          <label>
-            Server
-            <input value={host} onChange={(e) => setHost(e.target.value)} disabled={connected || connecting} />
-          </label>
-          <label>
-            Nickname
-            <input
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              disabled={connected || connecting}
-            />
-          </label>
-          {!connected && (
-            <button
-              className={showPasswordFields ? "ts-mic-on" : undefined}
-              onClick={() => setShowPasswordFields((v) => !v)}
-              disabled={connecting}
-              title="Server/channel password"
-            >
-              🔒
-            </button>
-          )}
-          {!connected && showPasswordFields && (
-            <>
-              <label>
-                Server password
-                <input
-                  type="password"
-                  value={serverPassword}
-                  onChange={(e) => setServerPassword(e.target.value)}
-                  disabled={connecting}
-                />
-              </label>
-              <label>
-                Channel password
-                <input
-                  type="password"
-                  value={channelPassword}
-                  onChange={(e) => setChannelPassword(e.target.value)}
-                  disabled={connecting}
-                />
-              </label>
-            </>
-          )}
+        <div className="ts-toolbar-icons">
           {!connected ? (
-            <button onClick={handleConnect} disabled={connecting}>
-              {connecting ? "Connecting…" : "Connect"}
+            <button
+              className="ts-icon-button"
+              onClick={handleConnect}
+              disabled={connecting}
+              title={connecting ? "Connecting…" : "Connect"}
+            >
+              🟢
             </button>
           ) : (
-            <button onClick={handleDisconnect}>Disconnect</button>
+            <button className="ts-icon-button" onClick={handleDisconnect} title="Disconnect">
+              🔴
+            </button>
           )}
+          <span className="ts-toolbar-sep" />
           <button
-            className={micOn ? "ts-mic-on" : undefined}
+            className={`ts-icon-button${micOn ? " ts-mic-on" : ""}`}
             onClick={handleToggleMic}
             disabled={!connected}
             title={micOn ? "Voice activation on - click to mute" : "Enable microphone (voice activation)"}
           >
             {micOn ? "🎤" : "🔇"}
           </button>
-          <label title="Voice activation sensitivity">
+          <label className="ts-icon-slider" title="Voice activation sensitivity">
             🎚️
             <input
               type="range"
@@ -560,11 +619,11 @@ function App() {
             />
           </label>
           {hasNativeOutputPicker() ? (
-            <button onClick={handlePickOutputDevice} title="Choose output device">
-              🔊 {outputDeviceLabel}
+            <button className="ts-icon-button" onClick={handlePickOutputDevice} title="Choose output device">
+              🔊
             </button>
           ) : (
-            <label>
+            <label className="ts-icon-select">
               🔊
               <select
                 value={outputDeviceId}
@@ -580,14 +639,59 @@ function App() {
               </select>
             </label>
           )}
+          <span className="ts-toolbar-sep" />
           <button
-            className="ts-theme-toggle"
+            className="ts-icon-button"
             onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
             title="Toggle theme"
           >
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
+          <span className="ts-app-title">TS Web Client</span>
         </div>
+
+        {!connected && (
+          <div className="ts-toolbar-fields">
+            <label>
+              Server
+              <input value={host} onChange={(e) => setHost(e.target.value)} disabled={connecting} />
+            </label>
+            <label>
+              Nickname
+              <input value={nickname} onChange={(e) => setNickname(e.target.value)} disabled={connecting} />
+            </label>
+            <button
+              className={showPasswordFields ? "ts-mic-on" : undefined}
+              onClick={() => setShowPasswordFields((v) => !v)}
+              disabled={connecting}
+              title="Server/channel password"
+            >
+              🔒
+            </button>
+            {showPasswordFields && (
+              <>
+                <label>
+                  Server password
+                  <input
+                    type="password"
+                    value={serverPassword}
+                    onChange={(e) => setServerPassword(e.target.value)}
+                    disabled={connecting}
+                  />
+                </label>
+                <label>
+                  Channel password
+                  <input
+                    type="password"
+                    value={channelPassword}
+                    onChange={(e) => setChannelPassword(e.target.value)}
+                    disabled={connecting}
+                  />
+                </label>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {connectError && (
@@ -636,9 +740,12 @@ function App() {
         <div className="ts-tree-panel">
           {connected ? (
             <>
-              <div className="ts-row ts-server-row">
+              <div
+                className={`ts-row ts-server-row${selected?.type === "server" ? " ts-row-selected" : ""}`}
+                onClick={() => handleSelectItem({ type: "server" })}
+              >
                 <ServerIcon />
-                <span>{host}</span>
+                <span>{serverName || host}</span>
               </div>
               <ChannelTree
                 channels={channels}
@@ -646,7 +753,9 @@ function App() {
                 parent={0}
                 ownClientId={ownClient?.id ?? null}
                 talkers={displayTalkers}
-                onSelectChannel={handleSelectChannel}
+                selected={selected}
+                onSelectItem={handleSelectItem}
+                onSwitchChannel={handleSwitchChannel}
                 onOpenPrivateChat={handleOpenPrivateChat}
                 onPokeClient={handlePokeClient}
               />
@@ -656,6 +765,18 @@ function App() {
           )}
         </div>
 
+        <div className="ts-main-panel">
+        {connected && (
+          <InfoPanel
+            selected={selected}
+            host={host}
+            serverName={serverName}
+            serverMaxClients={serverMaxClients}
+            totalClientCount={clients.length}
+            channels={channels}
+            clients={clients}
+          />
+        )}
         <div className="ts-chat-panel">
           <div className="ts-chat-tabs">
             <button
@@ -734,6 +855,7 @@ function App() {
               Send
             </button>
           </div>
+        </div>
         </div>
       </div>
 

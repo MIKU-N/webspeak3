@@ -1,0 +1,334 @@
+.ts-app {
+  --bg: #ffffff;
+  --bg-toolbar-1: #f5f6f8;
+  --bg-toolbar-2: #dfe2e6;
+  --border: #b7bcc3;
+  --border-soft: #d3d7db;
+  --text: #1a1a1a;
+  --text-muted: #888;
+  --accent: #2b4a6b;
+  --input-bg: #ffffff;
+  --input-text: #1a1a1a;
+  --button-bg-1: #fdfdfd;
+  --button-bg-2: #dde2e8;
+  --button-bg-hover-1: #ffffff;
+  --button-bg-hover-2: #e7ecf1;
+  --row-hover: #cfe4fb;
+  --client-text: #333;
+  --self-text: #0b5fa5;
+  --log-bg: #f7f8f9;
+  --log-text: #333;
+  --log-error: #b3261e;
+
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  color-scheme: light;
+}
+
+.ts-app.ts-theme-dark {
+  --bg: #1e1f22;
+  --bg-toolbar-1: #2b2d31;
+  --bg-toolbar-2: #232428;
+  --border: #3a3c42;
+  --border-soft: #35373d;
+  --text: #e3e5e8;
+  --text-muted: #9a9ca1;
+  --accent: #9db4d1;
+  --input-bg: #313338;
+  --input-text: #e3e5e8;
+  --button-bg-1: #3a3c42;
+  --button-bg-2: #2b2d31;
+  --button-bg-hover-1: #45474e;
+  --button-bg-hover-2: #35373d;
+  --row-hover: #35404d;
+  --client-text: #d5d7db;
+  --self-text: #7db2f0;
+  --log-bg: #202124;
+  --log-text: #c7c9cc;
+  --log-error: #f2867a;
+  color-scheme: dark;
+}
+
+/* Toolbar */
+
+.ts-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.4rem 0.75rem;
+  background: linear-gradient(to bottom, var(--bg-toolbar-1), var(--bg-toolbar-2));
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.ts-app-title {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.ts-toolbar-fields {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ts-toolbar-fields label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text);
+}
+
+.ts-toolbar-fields input:not([type="range"]) {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0.15rem 0.4rem;
+  font-size: 12px;
+  background: var(--input-bg);
+  color: var(--input-text);
+}
+
+.ts-toolbar-fields input[type="range"] {
+  width: 80px;
+}
+
+.ts-toolbar-fields select {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0.1rem 0.3rem;
+  font-size: 12px;
+  background: var(--input-bg);
+  color: var(--input-text);
+  max-width: 200px;
+  text-overflow: ellipsis;
+}
+
+.ts-toolbar-fields button {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-toolbar-fields button {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, var(--button-bg-1), var(--button-bg-2));
+  color: var(--text);
+  padding: 0.25rem 0.9rem;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.ts-toolbar-fields button:hover {
+  background: linear-gradient(to bottom, var(--button-bg-hover-1), var(--button-bg-hover-2));
+}
+
+.ts-theme-toggle {
+  padding: 0.2rem 0.5rem !important;
+  margin-left: auto;
+}
+
+/* Body / tree */
+
+.ts-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.ts-tree-panel {
+  width: 260px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  padding: 0.4rem 0.5rem;
+  border-right: 1px solid var(--border-soft);
+}
+
+.ts-tree-empty {
+  color: var(--text-muted);
+  padding: 1rem;
+  font-style: italic;
+}
+
+.ts-tree-list {
+  list-style: none;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.ts-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 1px 0.3rem;
+  border-radius: 2px;
+  white-space: nowrap;
+  line-height: 18px;
+}
+
+.ts-server-row {
+  font-weight: 600;
+  color: var(--accent);
+  padding-left: 0.3rem;
+  margin-bottom: 0.15rem;
+}
+
+.ts-channel-row {
+  cursor: pointer;
+  color: var(--text);
+}
+
+.ts-channel-row:hover {
+  background: var(--row-hover);
+}
+
+.ts-client-row {
+  color: var(--client-text);
+  padding-left: 0.65rem;
+}
+
+.ts-client-row.ts-self {
+  font-weight: 700;
+  color: var(--self-text);
+}
+
+.ts-client-row:not(.ts-self) {
+  cursor: pointer;
+}
+
+.ts-client-row:not(.ts-self):hover {
+  background: var(--row-hover);
+}
+
+.ts-client-row.ts-talking {
+  outline: 1px solid #4caf50;
+  border-radius: 2px;
+  background: color-mix(in srgb, #4caf50 15%, transparent);
+}
+
+.ts-mic-on {
+  background: color-mix(in srgb, #4caf50 30%, var(--button-bg-1)) !important;
+}
+
+/* Chat */
+
+.ts-chat-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ts-chat-tabs {
+  flex-shrink: 0;
+  display: flex;
+  gap: 2px;
+  padding: 0.3rem 0.5rem 0;
+  border-bottom: 1px solid var(--border-soft);
+  overflow-x: auto;
+}
+
+.ts-chat-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border-soft);
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  background: var(--bg-toolbar-1);
+  color: var(--text-muted);
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.ts-chat-tab-active {
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.ts-chat-tab-unread:not(.ts-chat-tab-active) {
+  color: var(--self-text);
+  font-weight: 600;
+}
+
+.ts-chat-tab-close {
+  color: var(--text-muted);
+  padding: 0 0.15rem;
+}
+
+.ts-chat-tab-close:hover {
+  color: var(--log-error);
+}
+
+.ts-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+}
+
+.ts-chat-line {
+  padding: 1px 0;
+  word-break: break-word;
+}
+
+.ts-chat-from {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.ts-chat-input-row {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+.ts-chat-input-row input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0.3rem 0.5rem;
+  font-size: 12px;
+  background: var(--input-bg);
+  color: var(--input-text);
+}
+
+.ts-chat-input-row button {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, var(--button-bg-1), var(--button-bg-2));
+  color: var(--text);
+  padding: 0.2rem 0.9rem;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* Log */
+
+.ts-log {
+  flex-shrink: 0;
+  max-height: 6.5rem;
+  overflow-y: auto;
+  border-top: 1px solid var(--border-soft);
+  background: var(--log-bg);
+  padding: 0.3rem 0.6rem;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+}
+
+.ts-log-info {
+  color: var(--log-text);
+}
+
+.ts-log-error {
+  color: var(--log-error);
+}

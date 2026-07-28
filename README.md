@@ -9,12 +9,15 @@ reimagined.
 
 ## Features
 
-- Connect to a real TeamSpeak (3/5/6) server
+- Connect to a real TeamSpeak (3/6) server
 - Channel/client tree with correct ordering, click to switch channels
 - Text chat: channel, server-wide, and private (1:1) — each in its own tab
 - Voice with voice activation ("Sprachaktivierung", not push-to-talk),
   adjustable sensitivity, and per-client speaking indicators
-- Audio output device picker (routes playback to a chosen device)
+- Audio output device picker (routes playback to a chosen device) — works in
+  Chrome/Edge and Firefox 130+; playback is routed through a hidden `<audio>`
+  element so device switching works even in browsers without
+  `AudioContext.setSinkId`
 - Light/dark theme
 
 ## Architecture
@@ -25,7 +28,7 @@ gateway is required that speaks the real TS protocol on one side and
 WebSocket to the browser on the other.
 
 ```
-Browser (web/)  <--WebSocket-->  Gateway (gateway/)  <--stdin/stdout JSON-->  Rust connector (connector/)  <--TS3/TS5 protocol-->  TeamSpeak Server
+Browser (web/)  <--WebSocket-->  Gateway (gateway/)  <--stdin/stdout JSON-->  Rust connector (connector/)  <--TS3/TS6 protocol-->  TeamSpeak Server
 ```
 
 - **`web/`** — Vite + React frontend. TS3-lookalike UI: channel tree, chat
@@ -34,7 +37,7 @@ Browser (web/)  <--WebSocket-->  Gateway (gateway/)  <--stdin/stdout JSON-->  Ru
   connector per browser connection and relays newline-delimited JSON events
   between it and the browser.
 - **`connector/`** — Rust binary wrapping [`tsclientlib`](https://github.com/ReSpeak/tsclientlib)
-  (vendored as a git submodule in `tsclientlib/`), the actual TS3/TS5
+  (vendored as a git submodule in `tsclientlib/`), the actual TS3/TS6
   protocol implementation. Handles connecting, channel/client state, chat,
   and Opus-encoded voice.
 

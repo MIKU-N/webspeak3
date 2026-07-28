@@ -87,6 +87,7 @@ function ChannelTree({
   talkers,
   onSelectChannel,
   onOpenPrivateChat,
+  onPokeClient,
 }: {
   channels: ChannelInfo[];
   clients: ClientInfo[];
@@ -95,6 +96,7 @@ function ChannelTree({
   talkers: Set<number>;
   onSelectChannel: (channelId: number) => void;
   onOpenPrivateChat: (clientId: number, clientName: string) => void;
+  onPokeClient: (clientId: number, clientName: string) => void;
 }) {
   const children = channels.filter((c) => c.parent === parent).sort((a, b) => a.order - b.order);
   if (children.length === 0) return null;
@@ -122,6 +124,18 @@ function ChannelTree({
                     <ClientIcon />
                     <span>{c.name}</span>
                     <ClientStatusIcons client={c} />
+                    {c.id !== ownClientId && (
+                      <button
+                        className="ts-poke-button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPokeClient(c.id, c.name);
+                        }}
+                        title={`Poke ${c.name}`}
+                      >
+                        👉
+                      </button>
+                    )}
                   </div>
                 </li>
               ))}
@@ -134,6 +148,7 @@ function ChannelTree({
             talkers={talkers}
             onSelectChannel={onSelectChannel}
             onOpenPrivateChat={onOpenPrivateChat}
+            onPokeClient={onPokeClient}
           />
         </li>
       ))}
@@ -160,6 +175,12 @@ interface PmThread {
 
 type ActiveTab = "channel" | "server" | number;
 
+interface PokeNotice {
+  id: number;
+  from: string;
+  message: string;
+}
+
 function App() {
   const [host, setHost] = useState(() => localStorage.getItem(LAST_HOST_KEY) ?? "localhost");
   const [nickname, setNickname] = useState(() => localStorage.getItem(LAST_NICKNAME_KEY) ?? "Claude Code");
@@ -176,6 +197,9 @@ function App() {
   const [serverChat, setServerChat] = useState<ChatEntry[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [pmThreads, setPmThreads] = useState<Record<number, PmThread>>({});
+  const [pokes, setPokes] = useState<PokeNotice[]>([]);
+  const [pokeTarget, setPokeTarget] = useState<{ id: number; name: string } | null>(null);
+  const [pokeMessage, setPokeMessage] = useState("");
   const [activeTab, setActiveTab] = useState<ActiveTab>("channel");
   const [theme, setTheme] = useState<"light" | "dark">(() =>
     window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light"
@@ -194,6 +218,7 @@ function App() {
   const micCaptureRef = useRef<MicCapture | null>(null);
   const activeTabRef = useRef<ActiveTab>("channel");
   const hasConnectedRef = useRef(false);
+  const pokeIdRef = useRef(0);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: "nearest" });
@@ -313,6 +338,12 @@ function App() {
         case "talkers":
           setTalkers(new Set<number>(data.clients));
           break;
+        case "poke": {
+          const id = ++pokeIdRef.current;
+          setPokes((prev) => [...prev, { id, from: data.from, message: data.message }]);
+          setTimeout(() => setPokes((prev) => prev.filter((p) => p.id !== id)), 10000);
+          break;
+        }
         case "disconnected":
           hasConnectedRef.current = false;
           setConnecting(false);
@@ -322,6 +353,7 @@ function App() {
           setChat([]);
           setServerChat([]);
           setPmThreads({});
+          setPokes([]);
           setActiveTab("channel");
           setTalkers(new Set());
           stopMic();
@@ -423,6 +455,20 @@ function App() {
       [clientId]: prev[clientId] ?? { partnerId: clientId, partnerName: clientName, messages: [], unread: false },
     }));
     setActiveTab(clientId);
+  };
+
+  const handlePokeClient = (clientId: number, clientName: string) => {
+    setPokeTarget({ id: clientId, name: clientName });
+    setPokeMessage("");
+  };
+
+  const handleSendPoke = () => {
+    if (!pokeTarget) return;
+    socketRef.current?.send(
+      JSON.stringify({ type: "sendPoke", clientId: pokeTarget.id, message: pokeMessage })
+    );
+    setPokeTarget(null);
+    setPokeMessage("");
   };
 
   const handleClosePrivateChat = (clientId: number) => {
@@ -553,6 +599,39 @@ function App() {
         </div>
       )}
 
+      {pokeTarget && (
+        <div className="ts-poke-compose-backdrop" onClick={() => setPokeTarget(null)}>
+          <div className="ts-poke-compose" onClick={(e) => e.stopPropagation()}>
+            <span>
+              👉 Poke <strong>{pokeTarget.name}</strong>
+            </span>
+            <input
+              autoFocus
+              value={pokeMessage}
+              onChange={(e) => setPokeMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSendPoke();
+                if (e.key === "Escape") setPokeTarget(null);
+              }}
+              placeholder="Optional message..."
+            />
+            <button onClick={handleSendPoke}>Poke</button>
+            <button onClick={() => setPokeTarget(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {pokes.map((poke) => (
+        <div key={poke.id} className="ts-poke-notice">
+          <span>
+            👉 <strong>{poke.from}</strong> poked you{poke.message ? `: ${poke.message}` : ""}
+          </span>
+          <button onClick={() => setPokes((prev) => prev.filter((p) => p.id !== poke.id))} title="Dismiss">
+            ✕
+          </button>
+        </div>
+      ))}
+
       <div className="ts-body">
         <div className="ts-tree-panel">
           {connected ? (
@@ -569,6 +648,7 @@ function App() {
                 talkers={displayTalkers}
                 onSelectChannel={handleSelectChannel}
                 onOpenPrivateChat={handleOpenPrivateChat}
+                onPokeClient={handlePokeClient}
               />
             </>
           ) : (

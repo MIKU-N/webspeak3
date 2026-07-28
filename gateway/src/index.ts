@@ -42,6 +42,10 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.sendPrivateMessage(msg.clientId, msg.message);
         break;
       }
+      case "sendPoke": {
+        await connection?.sendPoke(msg.clientId, msg.message ?? "");
+        break;
+      }
       case "sendAudio": {
         await connection?.sendAudio(msg.pcm);
         break;

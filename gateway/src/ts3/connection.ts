@@ -34,6 +34,7 @@ export type Ts3ConnectionEvent =
   | { type: "chatMessage"; from: string; message: string }
   | { type: "serverMessage"; from: string; message: string }
   | { type: "privateMessage"; partnerId: number; partnerName: string; fromSelf: boolean; message: string }
+  | { type: "poke"; from: string; message: string }
   | { type: "audioOut"; pcm: string }
   | { type: "talkers"; clients: number[] }
   | { type: "disconnected"; reason: string }
@@ -92,6 +93,7 @@ export class Ts3Connection {
           | { type: "chatMessage"; from: string; message: string }
           | { type: "serverMessage"; from: string; message: string }
           | { type: "privateMessage"; partner_id: number; partner_name: string; from_self: boolean; message: string }
+          | { type: "poke"; from: string; message: string }
           | { type: "audioOut"; pcm: string }
           | { type: "talkers"; clients: number[] }
           | { type: "disconnected"; reason: string }
@@ -160,6 +162,11 @@ export class Ts3Connection {
   async sendPrivateMessage(clientId: number, message: string): Promise<void> {
     const sanitized = message.replace(/[\r\n]+/g, " ").trim();
     if (sanitized) this.child?.stdin.write(`pm ${clientId} ${sanitized}\n`);
+  }
+
+  async sendPoke(clientId: number, message: string): Promise<void> {
+    const sanitized = message.replace(/[\r\n]+/g, " ").trim();
+    this.child?.stdin.write(`poke ${clientId} ${sanitized}\n`);
   }
 
   async sendAudio(pcmBase64: string): Promise<void> {

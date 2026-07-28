@@ -12,7 +12,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 
 use tsclientlib::audio::AudioHandler;
 use tsclientlib::events::Event as BookEvent;
-use tsclientlib::messages::c2s::OutSendTextMessagePart;
+use tsclientlib::messages::c2s::{OutClientPokeRequestPart, OutSendTextMessagePart};
 use tsclientlib::prelude::*;
 use tsclientlib::{
 	data, ChannelId, ClientId, Connection, DisconnectOptions, MessageHandle, MessageTarget,
@@ -77,6 +77,10 @@ enum Event {
 	/// frontend can group messages into one thread per partner.
 	#[serde(rename = "privateMessage")]
 	PrivateMessage { partner_id: u16, partner_name: String, from_self: bool, message: String },
+	/// Someone poked us. Pokes can only be received here - the server doesn't
+	/// echo our own outgoing pokes back to us, unlike text messages.
+	#[serde(rename = "poke")]
+	Poke { from: String, message: String },
 	/// Mixed, decoded PCM audio ready to play: 16-bit signed little-endian,
 	/// stereo, 48kHz, base64-encoded.
 	#[serde(rename = "audioOut")]
@@ -346,6 +350,24 @@ async fn run(args: Args) -> Result<()> {
 							},
 							None => emit(&Event::Error { message: "Malformed pm command".into() }),
 						}
+					} else if let Some(rest) = l.strip_prefix("poke ") {
+						// Unlike chat, a poke's message is optional - a plain poke with no
+						// text is a normal thing to send in TeamSpeak.
+						let rest = rest.trim();
+						let (id, message) = rest.split_once(' ').unwrap_or((rest, ""));
+						match id.parse::<u16>() {
+							Ok(id) => {
+								let part =
+									OutClientPokeRequestPart { client_id: ClientId(id), message: Cow::Borrowed(message) };
+								match part.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Poke".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid client id: {id}") }),
+						}
 					} else if let Some(b64) = l.strip_prefix("audio ") {
 						match base64::engine::general_purpose::STANDARD.decode(b64.trim()) {
 							Ok(bytes) => {
@@ -425,7 +447,9 @@ async fn run(args: Args) -> Result<()> {
 										});
 									}
 								}
-								_ => {}
+								MessageTarget::Poke(_) => {
+									emit(&Event::Poke { from: invoker.name.clone(), message: message.clone() });
+								}
 							}
 						}
 					}

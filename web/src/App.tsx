@@ -11,6 +11,9 @@ import {
 
 const GATEWAY_URL = "ws://localhost:8080";
 
+const LAST_HOST_KEY = "ts-web-client:last-host";
+const LAST_NICKNAME_KEY = "ts-web-client:last-nickname";
+
 type LogEntry = { text: string; kind: "info" | "error" };
 
 interface ChannelInfo {
@@ -24,6 +27,11 @@ interface ClientInfo {
   id: number;
   channel: number;
   name: string;
+  inputMuted: boolean;
+  outputMuted: boolean;
+  inputHardwareEnabled: boolean;
+  away: boolean;
+  isChannelCommander: boolean;
 }
 
 function ChannelIcon() {
@@ -46,6 +54,17 @@ function ClientIcon() {
       <path d="M2 14c0-3.3 2.7-5.2 6-5.2s6 1.9 6 5.2v.3H2V14Z" fill="#6d8fb0" />
       <circle cx="12.3" cy="12.3" r="2.6" fill="#4caf50" stroke="#fff" strokeWidth="0.8" />
     </svg>
+  );
+}
+
+function ClientStatusIcons({ client }: { client: ClientInfo }) {
+  return (
+    <span className="ts-status-icons">
+      {client.isChannelCommander && <span title="Channel commander">⭐</span>}
+      {client.away && <span title="Away">💤</span>}
+      {(client.inputMuted || !client.inputHardwareEnabled) && <span title="Microphone muted">🔇</span>}
+      {client.outputMuted && <span title="Sound muted (deafened)">🔕</span>}
+    </span>
   );
 }
 
@@ -102,6 +121,7 @@ function ChannelTree({
                   >
                     <ClientIcon />
                     <span>{c.name}</span>
+                    <ClientStatusIcons client={c} />
                   </div>
                 </li>
               ))}
@@ -141,8 +161,11 @@ interface PmThread {
 type ActiveTab = "channel" | "server" | number;
 
 function App() {
-  const [host, setHost] = useState("localhost");
-  const [nickname, setNickname] = useState("Claude Code");
+  const [host, setHost] = useState(() => localStorage.getItem(LAST_HOST_KEY) ?? "localhost");
+  const [nickname, setNickname] = useState(() => localStorage.getItem(LAST_NICKNAME_KEY) ?? "Claude Code");
+  const [serverPassword, setServerPassword] = useState("");
+  const [channelPassword, setChannelPassword] = useState("");
+  const [showPasswordFields, setShowPasswordFields] = useState(false);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -231,7 +254,15 @@ function App() {
     socketRef.current = socket;
 
     socket.onopen = () => {
-      socket.send(JSON.stringify({ type: "connect", host, nickname }));
+      socket.send(
+        JSON.stringify({
+          type: "connect",
+          host,
+          nickname,
+          serverPassword: serverPassword || undefined,
+          channelPassword: channelPassword || undefined,
+        })
+      );
     };
 
     socket.onmessage = (event) => {
@@ -242,6 +273,8 @@ function App() {
           setConnecting(false);
           setConnectError(null);
           setConnected(true);
+          localStorage.setItem(LAST_HOST_KEY, host);
+          localStorage.setItem(LAST_NICKNAME_KEY, nickname);
           setServerChat((prev) => [...prev, { from: "Server", message: data.welcomeMessage }]);
           break;
         case "channels":
@@ -422,6 +455,38 @@ function App() {
               disabled={connected || connecting}
             />
           </label>
+          {!connected && (
+            <button
+              className={showPasswordFields ? "ts-mic-on" : undefined}
+              onClick={() => setShowPasswordFields((v) => !v)}
+              disabled={connecting}
+              title="Server/channel password"
+            >
+              🔒
+            </button>
+          )}
+          {!connected && showPasswordFields && (
+            <>
+              <label>
+                Server password
+                <input
+                  type="password"
+                  value={serverPassword}
+                  onChange={(e) => setServerPassword(e.target.value)}
+                  disabled={connecting}
+                />
+              </label>
+              <label>
+                Channel password
+                <input
+                  type="password"
+                  value={channelPassword}
+                  onChange={(e) => setChannelPassword(e.target.value)}
+                  disabled={connecting}
+                />
+              </label>
+            </>
+          )}
           {!connected ? (
             <button onClick={handleConnect} disabled={connecting}>
               {connecting ? "Connecting…" : "Connect"}

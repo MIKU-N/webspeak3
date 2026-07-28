@@ -211,6 +211,13 @@
   background: color-mix(in srgb, #4caf50 15%, transparent);
 }
 
+.ts-status-icons {
+  display: inline-flex;
+  gap: 0.15rem;
+  font-size: 11px;
+  opacity: 0.85;
+}
+
 .ts-mic-on {
   background: color-mix(in srgb, #4caf50 30%, var(--button-bg-1)) !important;
 }

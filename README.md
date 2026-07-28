@@ -9,8 +9,11 @@ reimagined.
 
 ## Features
 
-- Connect to a real TeamSpeak (3/6) server
+- Connect to a real TeamSpeak (3/6) server, with optional server and
+  default-channel passwords
+- Remembers the last server/nickname you connected with
 - Channel/client tree with correct ordering, click to switch channels
+- Per-client status icons (channel commander, away, mic muted, deafened)
 - Text chat: channel, server-wide, and private (1:1) — each in its own tab
 - Voice with voice activation ("Sprachaktivierung", not push-to-talk),
   adjustable sensitivity, and per-client speaking indicators
@@ -44,3 +47,7 @@ Browser (web/)  <--WebSocket-->  Gateway (gateway/)  <--stdin/stdout JSON-->  Ru
 ## Installation
 
 See [INSTALL.md](INSTALL.md).
+
+## Credits
+
+The vast majority of this project's code was written by [Claude Code](https://claude.com/claude-code) (Anthropic's Claude), working iteratively with the repo owner one feature at a time.

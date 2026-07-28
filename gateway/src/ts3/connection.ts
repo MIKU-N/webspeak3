@@ -21,6 +21,11 @@ export interface ClientInfo {
   id: number;
   channel: number;
   name: string;
+  inputMuted: boolean;
+  outputMuted: boolean;
+  inputHardwareEnabled: boolean;
+  away: boolean;
+  isChannelCommander: boolean;
 }
 
 export type Ts3ConnectionEvent =
@@ -37,6 +42,8 @@ export type Ts3ConnectionEvent =
 export interface Ts3ConnectOptions {
   host: string;
   nickname: string;
+  serverPassword?: string;
+  channelPassword?: string;
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -61,18 +68,27 @@ export class Ts3Connection {
   }
 
   async connect(): Promise<void> {
-    this.child = spawn(CONNECTOR_BIN, [
-      "--address",
-      this.options.host,
-      "--nickname",
-      this.options.nickname,
-    ]);
+    const args = ["--address", this.options.host, "--nickname", this.options.nickname];
+    if (this.options.serverPassword) args.push("--server-password", this.options.serverPassword);
+    if (this.options.channelPassword) args.push("--channel-password", this.options.channelPassword);
+    this.child = spawn(CONNECTOR_BIN, args);
 
     createInterface({ input: this.child.stdout }).on("line", (line) => {
       try {
+        interface RawClientInfo {
+          id: number;
+          channel: number;
+          name: string;
+          input_muted: boolean;
+          output_muted: boolean;
+          input_hardware_enabled: boolean;
+          away: boolean;
+          is_channel_commander: boolean;
+        }
+
         const event = JSON.parse(line) as
           | { type: "connected"; welcome_message: string }
-          | { type: "channels"; channels: ChannelInfo[]; clients: ClientInfo[] }
+          | { type: "channels"; channels: ChannelInfo[]; clients: RawClientInfo[] }
           | { type: "chatMessage"; from: string; message: string }
           | { type: "serverMessage"; from: string; message: string }
           | { type: "privateMessage"; partner_id: number; partner_name: string; from_self: boolean; message: string }
@@ -83,6 +99,21 @@ export class Ts3Connection {
 
         if (event.type === "connected") {
           this.emit({ type: "connected", welcomeMessage: event.welcome_message });
+        } else if (event.type === "channels") {
+          this.emit({
+            type: "channels",
+            channels: event.channels,
+            clients: event.clients.map((c) => ({
+              id: c.id,
+              channel: c.channel,
+              name: c.name,
+              inputMuted: c.input_muted,
+              outputMuted: c.output_muted,
+              inputHardwareEnabled: c.input_hardware_enabled,
+              away: c.away,
+              isChannelCommander: c.is_channel_commander,
+            })),
+          });
         } else if (event.type === "privateMessage") {
           this.emit({
             type: "privateMessage",

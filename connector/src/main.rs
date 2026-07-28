@@ -33,6 +33,12 @@ struct Args {
 	/// Nickname to use on the server
 	#[arg(short, long, default_value = "Browser User")]
 	nickname: String,
+	/// Server password, if the server requires one
+	#[arg(long)]
+	server_password: Option<String>,
+	/// Password for the default channel to join, if it's password-protected
+	#[arg(long)]
+	channel_password: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -48,6 +54,11 @@ struct ClientInfo {
 	id: u16,
 	channel: u64,
 	name: String,
+	input_muted: bool,
+	output_muted: bool,
+	input_hardware_enabled: bool,
+	away: bool,
+	is_channel_commander: bool,
 }
 
 #[derive(Serialize)]
@@ -134,7 +145,16 @@ fn snapshot(con: &data::Connection) -> Event {
 	let clients = con
 		.clients
 		.values()
-		.map(|c| ClientInfo { id: c.id.0, channel: c.channel.0, name: c.name.clone() })
+		.map(|c| ClientInfo {
+			id: c.id.0,
+			channel: c.channel.0,
+			name: c.name.clone(),
+			input_muted: c.input_muted,
+			output_muted: c.output_muted,
+			input_hardware_enabled: c.input_hardware_enabled,
+			away: c.away_message.is_some(),
+			is_channel_commander: c.is_channel_commander,
+		})
 		.collect();
 	Event::Channels { channels, clients }
 }
@@ -172,7 +192,13 @@ async fn run(args: Args) -> Result<()> {
 	tracing_subscriber::fmt().with_env_filter("warn").with_writer(std::io::stderr).init();
 
 	let address = args.address.clone();
-	let con_config = Connection::build(args.address).name(args.nickname);
+	let mut con_config = Connection::build(args.address).name(args.nickname);
+	if let Some(pwd) = args.server_password {
+		con_config = con_config.password(pwd);
+	}
+	if let Some(pwd) = args.channel_password {
+		con_config = con_config.channel_password(pwd);
+	}
 
 	let mut con = con_config.connect().map_err(|e| friendly_connect_error(&address, e))?;
 

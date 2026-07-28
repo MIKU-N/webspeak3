@@ -7,7 +7,6 @@ import {
   hasNativeOutputPicker,
   listAudioOutputDevices,
   pickAudioOutputDevice,
-  setAudioOutputDevice,
 } from "./voice";
 
 const GATEWAY_URL = "ws://localhost:8080";
@@ -293,9 +292,10 @@ function App() {
     socket.onclose = () => {
       setConnected(false);
       stopMic();
+      audioPlayerRef.current?.dispose();
+      audioPlayerRef.current = null;
       audioContextRef.current?.close();
       audioContextRef.current = null;
-      audioPlayerRef.current = null;
     };
   };
 
@@ -327,7 +327,7 @@ function App() {
   const handleOutputDeviceChange = async (deviceId: string, label?: string) => {
     setOutputDeviceId(deviceId);
     setOutputDeviceLabel(label || (deviceId ? `Output ${deviceId.slice(0, 6)}` : "System default"));
-    if (audioContextRef.current) await setAudioOutputDevice(audioContextRef.current, deviceId);
+    await audioPlayerRef.current?.setOutputDevice(deviceId);
   };
 
   const handlePickOutputDevice = async () => {

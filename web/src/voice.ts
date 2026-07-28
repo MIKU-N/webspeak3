@@ -140,22 +140,34 @@ export async function pickAudioOutputDevice(): Promise<MediaDeviceInfo | null> {
   return md.selectAudioOutput();
 }
 
-/**
- * Routes an AudioContext's output to a specific device (empty string = system default).
- * `setSinkId` on AudioContext is a fairly recent addition (Chrome 110+); older
- * browsers simply keep using the system default output.
- */
-export async function setAudioOutputDevice(context: AudioContext, deviceId: string): Promise<void> {
-  const ctx = context as AudioContext & { setSinkId?: (id: string) => Promise<void> };
-  if (typeof ctx.setSinkId !== "function") return;
-  await ctx.setSinkId(deviceId);
-}
+type SinkableElement = HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
+type SinkableContext = AudioContext & { setSinkId?: (id: string) => Promise<void> };
 
-/** Schedules incoming base64-encoded stereo 16-bit PCM frames for gap-free playback. */
+/**
+ * Schedules incoming base64-encoded stereo 16-bit PCM frames for gap-free
+ * playback, and supports switching output device across browsers.
+ *
+ * Playback is routed through a `MediaStreamAudioDestinationNode` into a
+ * hidden `<audio>` element rather than straight to `context.destination`,
+ * because device switching support is split across browsers:
+ * `AudioContext.setSinkId` (Chrome 110+) only retargets the context itself,
+ * while `HTMLMediaElement.setSinkId` (Chrome, and Firefox 130+) only works on
+ * a media element. Routing through the element lets `setOutputDevice` use
+ * whichever one the browser actually supports.
+ */
 export class AudioPlayer {
   private nextTime = 0;
+  private destination: MediaStreamAudioDestinationNode;
+  private element: SinkableElement;
 
-  constructor(private context: AudioContext) {}
+  constructor(private context: AudioContext) {
+    this.destination = context.createMediaStreamDestination();
+    this.element = document.createElement("audio") as SinkableElement;
+    this.element.autoplay = true;
+    this.element.srcObject = this.destination.stream;
+    this.element.style.display = "none";
+    document.body.appendChild(this.element);
+  }
 
   playFrame(base64Pcm: string): void {
     const int16 = base64ToInt16(base64Pcm);
@@ -172,7 +184,7 @@ export class AudioPlayer {
 
     const source = this.context.createBufferSource();
     source.buffer = buffer;
-    source.connect(this.context.destination);
+    source.connect(this.destination);
 
     const now = this.context.currentTime;
     if (this.nextTime < now + 0.02) {
@@ -186,5 +198,25 @@ export class AudioPlayer {
 
   reset(): void {
     this.nextTime = 0;
+  }
+
+  /** Routes playback to a specific device (empty string = system default). */
+  async setOutputDevice(deviceId: string): Promise<void> {
+    if (typeof this.element.setSinkId === "function") {
+      await this.element.setSinkId(deviceId);
+      return;
+    }
+    const ctx = this.context as SinkableContext;
+    if (typeof ctx.setSinkId === "function") {
+      await ctx.setSinkId(deviceId);
+    }
+    // Neither API is available - stays on the system default output.
+  }
+
+  dispose(): void {
+    this.element.pause();
+    this.element.srcObject = null;
+    this.element.remove();
+    this.destination.stream.getTracks().forEach((t) => t.stop());
   }
 }

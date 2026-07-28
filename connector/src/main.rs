@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 
 use anyhow::Result;
 use audiopus::coder::Encoder as OpusEncoder;
@@ -146,23 +147,54 @@ async fn main() {
 	}
 }
 
+/// tsclientlib's error `Display` impls mostly fall back to `{:?}` for nested
+/// errors (e.g. `Failed to connect to server at "x": [Connect(TsProto(Timeout(..)))]`),
+/// which is accurate but not something an end user can act on. Map the cases
+/// that come up in practice to plain-language messages instead.
+fn friendly_connect_error(address: &str, e: tsclientlib::Error) -> anyhow::Error {
+	match &e {
+		tsclientlib::Error::ConnectTs(inner) => {
+			anyhow::anyhow!("The server rejected the connection: {inner}")
+		}
+		tsclientlib::Error::InitserverTimeout => anyhow::anyhow!(
+			"The server did not finish logging us in within the timeout - please try again"
+		),
+		_ if e.to_string().contains("Timeout") => anyhow::anyhow!(
+			"Could not reach \"{address}\": connection timed out. Check the address/port and that the server is reachable."
+		),
+		_ => anyhow::anyhow!("Could not connect to \"{address}\": {e}"),
+	}
+}
+
 async fn run(args: Args) -> Result<()> {
 	// stdout is a strict newline-delimited-JSON channel for the gateway to parse;
 	// all diagnostic logging must go to stderr instead.
 	tracing_subscriber::fmt().with_env_filter("warn").with_writer(std::io::stderr).init();
 
+	let address = args.address.clone();
 	let con_config = Connection::build(args.address).name(args.nickname);
 
-	let mut con = con_config.connect()?;
+	let mut con = con_config.connect().map_err(|e| friendly_connect_error(&address, e))?;
 
-	// Wait for the initial book events (means we're logged in and have server state)
-	let r = con
-		.events()
-		.try_filter(|e| future::ready(matches!(e, StreamItem::BookEvents(_))))
-		.next()
-		.await;
-	if let Some(r) = r {
-		r?;
+	// Wait for the initial book events (means we're logged in and have server state).
+	// Bounded by a timeout: an unreachable host/port otherwise leaves this waiting
+	// forever with no error, since tsclientlib only reports failures through this
+	// event stream rather than from `connect()` itself.
+	const CONNECT_TIMEOUT_SECS: u64 = 15;
+	{
+		let mut login_events =
+			con.events().try_filter(|e| future::ready(matches!(e, StreamItem::BookEvents(_))));
+		match tokio::time::timeout(Duration::from_secs(CONNECT_TIMEOUT_SECS), login_events.next()).await {
+			Ok(Some(r)) => {
+				r.map_err(|e| friendly_connect_error(&address, e))?;
+			}
+			Ok(None) => {}
+			Err(_) => {
+				anyhow::bail!(
+					"Could not reach \"{address}\": connection timed out after {CONNECT_TIMEOUT_SECS}s. Check the address/port and that the server is reachable."
+				);
+			}
+		}
 	}
 
 	let welcome_message = con.get_state()?.server.welcome_message.clone();

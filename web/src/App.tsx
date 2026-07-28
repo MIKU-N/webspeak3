@@ -145,6 +145,8 @@ function App() {
   const [nickname, setNickname] = useState("Claude Code");
   const [log, setLog] = useState<LogEntry[]>([]);
   const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const [channels, setChannels] = useState<ChannelInfo[]>([]);
   const [clients, setClients] = useState<ClientInfo[]>([]);
   const [chat, setChat] = useState<ChatEntry[]>([]);
@@ -168,6 +170,7 @@ function App() {
   const audioPlayerRef = useRef<AudioPlayer | null>(null);
   const micCaptureRef = useRef<MicCapture | null>(null);
   const activeTabRef = useRef<ActiveTab>("channel");
+  const hasConnectedRef = useRef(false);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: "nearest" });
@@ -216,6 +219,10 @@ function App() {
   };
 
   const handleConnect = () => {
+    hasConnectedRef.current = false;
+    setConnecting(true);
+    setConnectError(null);
+
     const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
     audioContextRef.current = audioContext;
     audioPlayerRef.current = new AudioPlayer(audioContext);
@@ -231,6 +238,9 @@ function App() {
       const data = JSON.parse(event.data);
       switch (data.type) {
         case "connected":
+          hasConnectedRef.current = true;
+          setConnecting(false);
+          setConnectError(null);
           setConnected(true);
           setServerChat((prev) => [...prev, { from: "Server", message: data.welcomeMessage }]);
           break;
@@ -271,6 +281,8 @@ function App() {
           setTalkers(new Set<number>(data.clients));
           break;
         case "disconnected":
+          hasConnectedRef.current = false;
+          setConnecting(false);
           setConnected(false);
           setChannels([]);
           setClients([]);
@@ -283,13 +295,29 @@ function App() {
           appendLog({ text: `Disconnected: ${data.reason}`, kind: "info" });
           break;
         case "error":
-          appendLog({ text: data.message, kind: "error" });
+          if (hasConnectedRef.current) {
+            appendLog({ text: data.message, kind: "error" });
+          } else {
+            setConnecting(false);
+            setConnectError(data.message);
+          }
           break;
       }
     };
 
-    socket.onerror = () => appendLog({ text: "WebSocket error (is the gateway running?)", kind: "error" });
+    socket.onerror = () => {
+      if (!hasConnectedRef.current) {
+        setConnecting(false);
+        setConnectError("Could not reach the gateway - is it running?");
+      } else {
+        appendLog({ text: "WebSocket error (is the gateway running?)", kind: "error" });
+      }
+    };
     socket.onclose = () => {
+      if (!hasConnectedRef.current) {
+        setConnecting(false);
+        setConnectError((prev) => prev ?? "Connection closed before the server responded");
+      }
       setConnected(false);
       stopMic();
       audioPlayerRef.current?.dispose();
@@ -384,14 +412,20 @@ function App() {
         <div className="ts-toolbar-fields">
           <label>
             Server
-            <input value={host} onChange={(e) => setHost(e.target.value)} disabled={connected} />
+            <input value={host} onChange={(e) => setHost(e.target.value)} disabled={connected || connecting} />
           </label>
           <label>
             Nickname
-            <input value={nickname} onChange={(e) => setNickname(e.target.value)} disabled={connected} />
+            <input
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              disabled={connected || connecting}
+            />
           </label>
           {!connected ? (
-            <button onClick={handleConnect}>Connect</button>
+            <button onClick={handleConnect} disabled={connecting}>
+              {connecting ? "Connecting…" : "Connect"}
+            </button>
           ) : (
             <button onClick={handleDisconnect}>Disconnect</button>
           )}
@@ -444,6 +478,15 @@ function App() {
           </button>
         </div>
       </div>
+
+      {connectError && (
+        <div className="ts-connect-error">
+          <span>⚠️ {connectError}</span>
+          <button onClick={() => setConnectError(null)} title="Dismiss">
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="ts-body">
         <div className="ts-tree-panel">

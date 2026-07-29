@@ -783,6 +783,70 @@
   gap: 0.6rem;
 }
 
+.ts-options-dialog {
+  width: 640px;
+}
+
+.ts-options-body {
+  display: flex;
+  height: 420px;
+}
+
+.ts-options-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-soft);
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  overflow-y: auto;
+}
+
+.ts-options-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 2px;
+  font-size: 12px;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ts-options-sidebar-item:hover {
+  background: var(--row-hover);
+}
+
+.ts-options-sidebar-item-active {
+  background: var(--row-hover);
+  outline: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.ts-options-sidebar-icon {
+  width: 1.2em;
+  text-align: center;
+}
+
+.ts-options-content {
+  flex: 1;
+  padding: 1rem;
+}
+
+.ts-options-content h3 {
+  margin: 0 0 0.5rem;
+}
+
+.ts-options-placeholder {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
 .ts-dialog-titlebar {
   display: flex;
   align-items: center;

@@ -735,6 +735,70 @@ function AwayDialog({
   );
 }
 
+const OPTIONS_SECTIONS = [
+  { id: "anwendung", icon: "🎧", label: "Anwendung" },
+  { id: "myteamspeak", icon: "👤", label: "myTeamSpeak" },
+  { id: "wiedergabe", icon: "🔊", label: "Wiedergabe" },
+  { id: "aufnahme", icon: "🎙️", label: "Aufnahme" },
+  { id: "design", icon: "🖌️", label: "Design" },
+  { id: "erweiterungen", icon: "🧩", label: "Erweiterungen" },
+  { id: "hotkeys", icon: "⌨️", label: "Hotkeys" },
+  { id: "whispern", icon: "🤫", label: "Whispern" },
+  { id: "downloads", icon: "⬇️", label: "Downloads" },
+  { id: "chat", icon: "💬", label: "Chat" },
+  { id: "sicherheit", icon: "🛡️", label: "Sicherheit" },
+  { id: "nachrichten", icon: "🔤", label: "Nachrichten" },
+  { id: "meldungen", icon: "ℹ️", label: "Meldungen" },
+] as const;
+
+function OptionsDialog({
+  section,
+  onSectionChange,
+  onClose,
+}: {
+  section: string;
+  onSectionChange: (id: string) => void;
+  onClose: () => void;
+}) {
+  const active = OPTIONS_SECTIONS.find((s) => s.id === section) ?? OPTIONS_SECTIONS[0];
+  return (
+    <div className="ts-dialog-backdrop" onClick={onClose}>
+      <div className="ts-dialog ts-options-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>Optionen</span>
+          <button onClick={onClose} title="Close">
+            ✕
+          </button>
+        </div>
+        <div className="ts-options-body">
+          <div className="ts-options-sidebar">
+            {OPTIONS_SECTIONS.map((s) => (
+              <button
+                key={s.id}
+                className={`ts-options-sidebar-item${s.id === active.id ? " ts-options-sidebar-item-active" : ""}`}
+                onClick={() => onSectionChange(s.id)}
+              >
+                <span className="ts-options-sidebar-icon">{s.icon}</span>
+                <span>{s.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="ts-options-content">
+            <h3>{active.label}</h3>
+            <p className="ts-options-placeholder">Diese Einstellungen sind noch nicht implementiert.</p>
+          </div>
+        </div>
+        <div className="ts-dialog-buttons">
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>OK</button>
+            <button onClick={onClose}>Abbrechen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [host, setHost] = useState(() => localStorage.getItem(LAST_HOST_KEY) ?? "localhost");
   const [nickname, setNickname] = useState(() => localStorage.getItem(LAST_NICKNAME_KEY) ?? "Claude Code");
@@ -786,6 +850,8 @@ function App() {
   const [awayDialogMessage, setAwayDialogMessage] = useState("");
   const [awayPresets, setAwayPresets] = useState<string[]>(() => loadAwayPresets());
   const [extrasMenuOpen, setExtrasMenuOpen] = useState(false);
+  const [optionsDialogOpen, setOptionsDialogOpen] = useState(false);
+  const [optionsSection, setOptionsSection] = useState<string>(OPTIONS_SECTIONS[0].id);
   const socketRef = useRef<WebSocket | null>(null);
   const connectionsMenuRef = useRef<HTMLDivElement | null>(null);
   const favoritesMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1451,7 +1517,13 @@ function App() {
                 <span className="ts-menu-item-label">Overwolf installieren</span>
               </button>
               <div className="ts-menu-separator" />
-              <button className="ts-menu-item" disabled>
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  setOptionsDialogOpen(true);
+                  setExtrasMenuOpen(false);
+                }}
+              >
                 <span className="ts-menu-item-icon">⚙️</span>
                 <span className="ts-menu-item-label">Optionen</span>
                 <span className="ts-menu-item-shortcut">Alt+P</span>
@@ -1625,6 +1697,14 @@ function App() {
           onOk={handleConfirmAway}
           onSaveTemplate={handleSaveAwayTemplate}
           onCancel={() => setAwayDialogOpen(false)}
+        />
+      )}
+
+      {optionsDialogOpen && (
+        <OptionsDialog
+          section={optionsSection}
+          onSectionChange={setOptionsSection}
+          onClose={() => setOptionsDialogOpen(false)}
         />
       )}
 

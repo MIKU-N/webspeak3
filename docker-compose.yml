@@ -2,5 +2,10 @@ services:
   ts-web-client:
     build: .
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    # Port publishing is deployment-specific (depends on what's free on the
+    # host) - set it in a local, gitignored docker-compose.override.yml, e.g.:
+    #
+    # services:
+    #   ts-web-client:
+    #     ports:
+    #       - "8080:8080"

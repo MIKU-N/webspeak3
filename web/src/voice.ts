@@ -61,6 +61,10 @@ export class MicCapture {
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
     });
+    // Granting the permission prompt counts as a user gesture, so this can
+    // succeed even when start() was triggered automatically on page load,
+    // before the AudioContext would otherwise be allowed to leave "suspended".
+    if (this.context.state === "suspended") await this.context.resume();
     this.source = this.context.createMediaStreamSource(this.stream);
     this.processor = this.context.createScriptProcessor(2048, 1, 1);
     this.processor.onaudioprocess = (event) => {

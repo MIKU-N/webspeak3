@@ -1190,6 +1190,16 @@ function App() {
     socketRef.current?.send(JSON.stringify({ type: "setInputMuted", muted: !inputMutedRef.current }));
   };
 
+  // Enable the mic automatically on page load (voice activation still gates
+  // what's actually sent) instead of requiring an explicit click every time.
+  const autoMicAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (autoMicAttemptedRef.current) return;
+    autoMicAttemptedRef.current = true;
+    void handleToggleMic();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleToggleOutputMuted = () => {
     socketRef.current?.send(JSON.stringify({ type: "setOutputMuted", muted: !outputMutedRef.current }));
   };

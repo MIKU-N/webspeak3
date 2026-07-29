@@ -789,7 +789,7 @@
 
 .ts-options-body {
   display: flex;
-  height: 420px;
+  height: min(420px, 70vh);
 }
 
 .ts-options-sidebar {
@@ -835,6 +835,8 @@
 .ts-options-content {
   flex: 1;
   padding: 1rem;
+  overflow-y: auto;
+  min-width: 0;
 }
 
 .ts-options-content h3 {

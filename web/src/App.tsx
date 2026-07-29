@@ -881,6 +881,18 @@ function App() {
     setSelfActive(false);
   };
 
+  // Mic/output-device setup shouldn't require an active server connection (like
+  // the real TS3 client, where you can test your devices before connecting) -
+  // lazily create the audio context on first use instead of tying it to connect.
+  const ensureAudioContext = (): AudioContext => {
+    if (!audioContextRef.current) {
+      const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+      audioContextRef.current = audioContext;
+      audioPlayerRef.current = new AudioPlayer(audioContext);
+    }
+    return audioContextRef.current;
+  };
+
   const handleConnect = (overrides?: {
     host?: string;
     nickname?: string;
@@ -899,9 +911,7 @@ function App() {
     setConnectError(null);
     setConnectDialogOpen(false);
 
-    const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
-    audioContextRef.current = audioContext;
-    audioPlayerRef.current = new AudioPlayer(audioContext);
+    ensureAudioContext();
 
     const socket = new WebSocket(GATEWAY_URL);
     socketRef.current = socket;
@@ -1158,8 +1168,7 @@ function App() {
 
   const handleToggleMic = async () => {
     if (!micOn) {
-      const audioContext = audioContextRef.current;
-      if (!audioContext) return;
+      const audioContext = ensureAudioContext();
       try {
         const mic = new MicCapture(
           audioContext,
@@ -1412,7 +1421,6 @@ function App() {
           <button
             className={`ts-icon-button${micOn && !inputMuted ? " ts-mic-on" : ""}${micOn && inputMuted ? " ts-muted-on" : ""}`}
             onClick={handleToggleMic}
-            disabled={!connected}
             title={
               !micOn
                 ? "Enable microphone"

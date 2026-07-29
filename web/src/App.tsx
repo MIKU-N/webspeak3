@@ -785,10 +785,12 @@ function App() {
   const [awayDialogOpen, setAwayDialogOpen] = useState(false);
   const [awayDialogMessage, setAwayDialogMessage] = useState("");
   const [awayPresets, setAwayPresets] = useState<string[]>(() => loadAwayPresets());
+  const [extrasMenuOpen, setExtrasMenuOpen] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const connectionsMenuRef = useRef<HTMLDivElement | null>(null);
   const favoritesMenuRef = useRef<HTMLDivElement | null>(null);
   const awayMenuRef = useRef<HTMLDivElement | null>(null);
+  const extrasMenuRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioPlayerRef = useRef<AudioPlayer | null>(null);
@@ -1149,6 +1151,22 @@ function App() {
   }, [awayMenuOpen]);
 
   useEffect(() => {
+    if (!extrasMenuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (!extrasMenuRef.current?.contains(e.target as Node)) setExtrasMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExtrasMenuOpen(false);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [extrasMenuOpen]);
+
+  useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!e.ctrlKey) return;
       if (e.key.toLowerCase() === "s" && !connected && !connecting) {
@@ -1362,11 +1380,86 @@ function App() {
             </div>
           )}
         </div>
-        {["Selbst", "Rechte", "Extras", "Hilfe"].map((item) => (
+        {["Selbst", "Rechte"].map((item) => (
           <span key={item} className="ts-menubar-item">
             {item}
           </span>
         ))}
+        <div className="ts-menubar-dropdown" ref={extrasMenuRef}>
+          <span
+            className="ts-menubar-item ts-menubar-item-active"
+            onClick={() => setExtrasMenuOpen((v) => !v)}
+          >
+            Extras
+          </span>
+          {extrasMenuOpen && (
+            <div className="ts-menu">
+              {[
+                { icon: "🪪", label: "Identitäten", shortcut: "Strg+I" },
+                { icon: "📇", label: "Kontakte", shortcut: "Strg+Umschalt+O" },
+                { icon: "🔗", label: "Gesammelte URLs", shortcut: "Strg+U" },
+                { icon: "📁", label: "Dateitransfers", shortcut: "Strg+T" },
+                { icon: "🧑‍🤝‍🧑", label: "Freund einladen" },
+                { icon: "✉️", label: "Offline Nachrichten", shortcut: "Strg+O" },
+              ].map((item) => (
+                <button key={item.label} className="ts-menu-item" disabled>
+                  <span className="ts-menu-item-icon">{item.icon}</span>
+                  <span className="ts-menu-item-label">{item.label}</span>
+                  {item.shortcut && <span className="ts-menu-item-shortcut">{item.shortcut}</span>}
+                </button>
+              ))}
+              <div className="ts-menu-separator" />
+              {[
+                { icon: "🗒️", label: "Whisperlisten", shortcut: "Strg+Umschalt+W" },
+                { icon: "🕓", label: "Whisper Verlauf", shortcut: "Strg+Umschalt+H" },
+                { icon: "📜", label: "Client Protokoll", shortcut: "Strg+L" },
+              ].map((item) => (
+                <button key={item.label} className="ts-menu-item" disabled>
+                  <span className="ts-menu-item-icon">{item.icon}</span>
+                  <span className="ts-menu-item-label">{item.label}</span>
+                  <span className="ts-menu-item-shortcut">{item.shortcut}</span>
+                </button>
+              ))}
+              <div className="ts-menu-separator" />
+              {[
+                { icon: "🚫", label: "Bannliste", shortcut: "Strg+Umschalt+B" },
+                { icon: "⚠️", label: "Beschwerdeliste", shortcut: "Strg+Umschalt+C" },
+                { icon: "🔑", label: "ServerQuery Login" },
+                { icon: "📄", label: "Server Protokoll", shortcut: "Strg+Umschalt+L" },
+              ].map((item) => (
+                <button key={item.label} className="ts-menu-item" disabled>
+                  <span className="ts-menu-item-icon">{item.icon}</span>
+                  <span className="ts-menu-item-label">{item.label}</span>
+                  {item.shortcut && <span className="ts-menu-item-shortcut">{item.shortcut}</span>}
+                </button>
+              ))}
+              <div className="ts-menu-separator" />
+              {[
+                { icon: "🔴", label: "Aufnahme starten", shortcut: "Strg+Umschalt+R" },
+                { icon: "🔴", label: "Start Multitrack Recording" },
+                { icon: "⏹️", label: "Aufnahme beenden", shortcut: "Strg+Umschalt+T" },
+              ].map((item) => (
+                <button key={item.label} className="ts-menu-item" disabled>
+                  <span className="ts-menu-item-icon">{item.icon}</span>
+                  <span className="ts-menu-item-label">{item.label}</span>
+                  {item.shortcut && <span className="ts-menu-item-shortcut">{item.shortcut}</span>}
+                </button>
+              ))}
+              <div className="ts-menu-separator" />
+              <button className="ts-menu-item" disabled>
+                <span className="ts-menu-item-icon">🟠</span>
+                <span className="ts-menu-item-label">Overwolf installieren</span>
+              </button>
+              <div className="ts-menu-separator" />
+              <button className="ts-menu-item" disabled>
+                <span className="ts-menu-item-icon">⚙️</span>
+                <span className="ts-menu-item-label">Optionen</span>
+                <span className="ts-menu-item-shortcut">Alt+P</span>
+              </button>
+            </div>
+          )}
+        </div>
+        <span className="ts-menubar-item">Hilfe</span>
       </div>
 
       <div className="ts-toolbar">

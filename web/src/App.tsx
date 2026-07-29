@@ -181,6 +181,8 @@ function InfoPanel({
   host,
   serverName,
   serverMaxClients,
+  serverVersion,
+  serverLicense,
   totalClientCount,
   channels,
   clients,
@@ -189,6 +191,8 @@ function InfoPanel({
   host: string;
   serverName: string;
   serverMaxClients: number;
+  serverVersion: string;
+  serverLicense: string;
   totalClientCount: number;
   channels: ChannelInfo[];
   clients: ClientInfo[];
@@ -201,7 +205,23 @@ function InfoPanel({
           <span>{serverName || host}</span>
         </div>
         <div className="ts-info-row">
-          <span>Clients:</span> <span>{totalClientCount} / {serverMaxClients || "∞"}</span>
+          <span>Adresse:</span> <span>{host}</span>
+        </div>
+        {serverVersion && (
+          <div className="ts-info-row">
+            <span>Version:</span> <span>{serverVersion}</span>
+          </div>
+        )}
+        {serverLicense && (
+          <div className="ts-info-row">
+            <span>Lizenz:</span> <span>{serverLicense}</span>
+          </div>
+        )}
+        <div className="ts-info-row">
+          <span>Aktuelle Clients:</span> <span>{totalClientCount} / {serverMaxClients || "∞"}</span>
+        </div>
+        <div className="ts-info-row">
+          <span>Aktuelle Channel:</span> <span>{channels.length}</span>
         </div>
       </div>
     );
@@ -260,12 +280,152 @@ interface PokeNotice {
   message: string;
 }
 
+function ConnectDialog({
+  host,
+  nickname,
+  serverPassword,
+  channelPassword,
+  defaultChannel,
+  expanded,
+  connecting,
+  onHostChange,
+  onNicknameChange,
+  onServerPasswordChange,
+  onChannelPasswordChange,
+  onDefaultChannelChange,
+  onToggleExpanded,
+  onConnect,
+  onCancel,
+}: {
+  host: string;
+  nickname: string;
+  serverPassword: string;
+  channelPassword: string;
+  defaultChannel: string;
+  expanded: boolean;
+  connecting: boolean;
+  onHostChange: (v: string) => void;
+  onNicknameChange: (v: string) => void;
+  onServerPasswordChange: (v: string) => void;
+  onChannelPasswordChange: (v: string) => void;
+  onDefaultChannelChange: (v: string) => void;
+  onToggleExpanded: () => void;
+  onConnect: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="ts-dialog-backdrop" onClick={onCancel}>
+      <div className="ts-dialog ts-connect-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>Verbinden</span>
+          <button onClick={onCancel} title="Close">
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          <div className="ts-dialog-row">
+            <label className="ts-dialog-field ts-dialog-field-grow">
+              Server Nickname oder Adresse:
+              <input autoFocus value={host} onChange={(e) => onHostChange(e.target.value)} />
+            </label>
+            <label className="ts-dialog-field">
+              Server Passwort:
+              <input
+                type="password"
+                value={serverPassword}
+                onChange={(e) => onServerPasswordChange(e.target.value)}
+              />
+            </label>
+          </div>
+          <label className="ts-dialog-field">
+            Nickname:
+            <input value={nickname} onChange={(e) => onNicknameChange(e.target.value)} />
+          </label>
+
+          {expanded && (
+            <div className="ts-dialog-grid">
+              <label className="ts-dialog-field">
+                Phonetischer Nickname:
+                <input disabled title="Not supported yet" />
+              </label>
+              <label className="ts-dialog-field">
+                Identität:
+                <select disabled defaultValue="Standard">
+                  <option>Standard</option>
+                </select>
+              </label>
+              <label className="ts-dialog-field">
+                Standard Channel:
+                <input value={defaultChannel} onChange={(e) => onDefaultChannelChange(e.target.value)} />
+              </label>
+              <label className="ts-dialog-field">
+                Aufnahmeprofil:
+                <select disabled defaultValue="Standard">
+                  <option>Standard</option>
+                </select>
+              </label>
+              <label className="ts-dialog-field">
+                Channel Passwort:
+                <input
+                  type="password"
+                  value={channelPassword}
+                  onChange={(e) => onChannelPasswordChange(e.target.value)}
+                />
+              </label>
+              <label className="ts-dialog-field">
+                Wiedergabeprofil:
+                <select disabled defaultValue="Standard">
+                  <option>Standard</option>
+                </select>
+              </label>
+              <label className="ts-dialog-field">
+                Einmalige Berechtigung:
+                <input disabled title="Not supported yet" />
+              </label>
+              <label className="ts-dialog-field">
+                Hotkeyprofil:
+                <select disabled defaultValue="Standard">
+                  <option>Standard</option>
+                </select>
+              </label>
+              <label className="ts-dialog-checkbox">
+                <input type="checkbox" disabled title="Not supported yet" />
+                myTeamSpeak ID senden
+              </label>
+              <label className="ts-dialog-field">
+                Sound Pack:
+                <select disabled defaultValue="Standard">
+                  <option>Standard</option>
+                </select>
+              </label>
+            </div>
+          )}
+        </div>
+        <div className="ts-dialog-buttons">
+          <button onClick={onToggleExpanded}>{expanded ? "Weniger" : "Mehr"}</button>
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onConnect} disabled={connecting || !host || !nickname}>
+              {connecting ? "Connecting…" : "Verbinden"}
+            </button>
+            <button disabled title="Not supported in the web client">
+              In neuem Tab
+            </button>
+            <button onClick={onCancel}>Abbrechen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [host, setHost] = useState(() => localStorage.getItem(LAST_HOST_KEY) ?? "localhost");
   const [nickname, setNickname] = useState(() => localStorage.getItem(LAST_NICKNAME_KEY) ?? "Claude Code");
   const [serverPassword, setServerPassword] = useState("");
   const [channelPassword, setChannelPassword] = useState("");
-  const [showPasswordFields, setShowPasswordFields] = useState(false);
+  const [defaultChannel, setDefaultChannel] = useState("");
+  const [connectDialogOpen, setConnectDialogOpen] = useState(false);
+  const [connectDialogExpanded, setConnectDialogExpanded] = useState(false);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -274,6 +434,11 @@ function App() {
   const [clients, setClients] = useState<ClientInfo[]>([]);
   const [serverName, setServerName] = useState("");
   const [serverMaxClients, setServerMaxClients] = useState(0);
+  const [serverVersion, setServerVersion] = useState("");
+  const [serverLicense, setServerLicense] = useState("");
+  const [serverBannerUrl, setServerBannerUrl] = useState("");
+  const [treeWidth, setTreeWidth] = useState(260);
+  const [upperHeight, setUpperHeight] = useState(340);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
   const [chat, setChat] = useState<ChatEntry[]>([]);
   const [serverChat, setServerChat] = useState<ChatEntry[]>([]);
@@ -293,7 +458,9 @@ function App() {
   const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
   const [outputDeviceId, setOutputDeviceId] = useState("");
   const [outputDeviceLabel, setOutputDeviceLabel] = useState("System default");
+  const [connectionsMenuOpen, setConnectionsMenuOpen] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
+  const connectionsMenuRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioPlayerRef = useRef<AudioPlayer | null>(null);
@@ -341,6 +508,36 @@ function App() {
 
   const appendLog = (entry: LogEntry) => setLog((prev) => [...prev, entry]);
 
+  const startTreeResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = treeWidth;
+    const onMove = (ev: MouseEvent) => {
+      setTreeWidth(Math.min(500, Math.max(150, startWidth + (ev.clientX - startX))));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const startUpperResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = upperHeight;
+    const onMove = (ev: MouseEvent) => {
+      setUpperHeight(Math.min(700, Math.max(120, startHeight + (ev.clientY - startY))));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
   const stopMic = () => {
     micCaptureRef.current?.stop();
     micCaptureRef.current = null;
@@ -352,6 +549,7 @@ function App() {
     hasConnectedRef.current = false;
     setConnecting(true);
     setConnectError(null);
+    setConnectDialogOpen(false);
 
     const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
     audioContextRef.current = audioContext;
@@ -368,6 +566,7 @@ function App() {
           nickname,
           serverPassword: serverPassword || undefined,
           channelPassword: channelPassword || undefined,
+          defaultChannel: defaultChannel || undefined,
         })
       );
     };
@@ -384,6 +583,9 @@ function App() {
           localStorage.setItem(LAST_NICKNAME_KEY, nickname);
           setServerName(data.serverName);
           setServerMaxClients(data.serverMaxClients);
+          setServerVersion(data.serverVersion);
+          setServerLicense(data.serverLicense);
+          setServerBannerUrl(data.serverBannerUrl);
           setSelected({ type: "server" });
           setServerChat((prev) => [...prev, { from: "Server", message: data.welcomeMessage }]);
           break;
@@ -480,6 +682,37 @@ function App() {
 
   const handleDisconnect = () => socketRef.current?.close();
 
+  useEffect(() => {
+    if (!connectionsMenuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (!connectionsMenuRef.current?.contains(e.target as Node)) setConnectionsMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setConnectionsMenuOpen(false);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [connectionsMenuOpen]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!e.ctrlKey) return;
+      if (e.key.toLowerCase() === "s" && !connected && !connecting) {
+        e.preventDefault();
+        setConnectDialogOpen(true);
+      } else if (e.key.toLowerCase() === "d" && connected) {
+        e.preventDefault();
+        handleDisconnect();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [connected, connecting]);
+
   const handleToggleMic = async () => {
     if (micOn) {
       stopMic();
@@ -575,7 +808,54 @@ function App() {
   return (
     <div className={`ts-app ts-theme-${theme}`}>
       <div className="ts-menubar">
-        {["Verbindungen", "Favoriten", "Selbst", "Rechte", "Extras", "Hilfe"].map((item) => (
+        <div className="ts-menubar-dropdown" ref={connectionsMenuRef}>
+          <span
+            className="ts-menubar-item ts-menubar-item-active"
+            onClick={() => setConnectionsMenuOpen((v) => !v)}
+          >
+            Verbindungen
+          </span>
+          {connectionsMenuOpen && (
+            <div className="ts-menu">
+              <button
+                className="ts-menu-item"
+                disabled={connected || connecting}
+                onClick={() => {
+                  setConnectDialogOpen(true);
+                  setConnectionsMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">🟢</span>
+                <span className="ts-menu-item-label">Verbinden</span>
+                <span className="ts-menu-item-shortcut">Strg+S</span>
+              </button>
+              <button
+                className="ts-menu-item"
+                disabled={!connected}
+                onClick={() => {
+                  handleDisconnect();
+                  setConnectionsMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">🔴</span>
+                <span className="ts-menu-item-label">Aktuelle Verbindung trennen</span>
+                <span className="ts-menu-item-shortcut">Strg+D</span>
+              </button>
+              <button
+                className="ts-menu-item"
+                disabled={!connected}
+                onClick={() => {
+                  handleDisconnect();
+                  setConnectionsMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">❌</span>
+                <span className="ts-menu-item-label">Alle Verbindungen trennen</span>
+              </button>
+            </div>
+          )}
+        </div>
+        {["Favoriten", "Selbst", "Rechte", "Extras", "Hilfe"].map((item) => (
           <span key={item} className="ts-menubar-item">
             {item}
           </span>
@@ -587,7 +867,7 @@ function App() {
           {!connected ? (
             <button
               className="ts-icon-button"
-              onClick={handleConnect}
+              onClick={() => setConnectDialogOpen(true)}
               disabled={connecting}
               title={connecting ? "Connecting…" : "Connect"}
             >
@@ -650,49 +930,27 @@ function App() {
           <span className="ts-app-title">TS Web Client</span>
         </div>
 
-        {!connected && (
-          <div className="ts-toolbar-fields">
-            <label>
-              Server
-              <input value={host} onChange={(e) => setHost(e.target.value)} disabled={connecting} />
-            </label>
-            <label>
-              Nickname
-              <input value={nickname} onChange={(e) => setNickname(e.target.value)} disabled={connecting} />
-            </label>
-            <button
-              className={showPasswordFields ? "ts-mic-on" : undefined}
-              onClick={() => setShowPasswordFields((v) => !v)}
-              disabled={connecting}
-              title="Server/channel password"
-            >
-              🔒
-            </button>
-            {showPasswordFields && (
-              <>
-                <label>
-                  Server password
-                  <input
-                    type="password"
-                    value={serverPassword}
-                    onChange={(e) => setServerPassword(e.target.value)}
-                    disabled={connecting}
-                  />
-                </label>
-                <label>
-                  Channel password
-                  <input
-                    type="password"
-                    value={channelPassword}
-                    onChange={(e) => setChannelPassword(e.target.value)}
-                    disabled={connecting}
-                  />
-                </label>
-              </>
-            )}
-          </div>
-        )}
       </div>
+
+      {connectDialogOpen && (
+        <ConnectDialog
+          host={host}
+          nickname={nickname}
+          serverPassword={serverPassword}
+          channelPassword={channelPassword}
+          defaultChannel={defaultChannel}
+          expanded={connectDialogExpanded}
+          connecting={connecting}
+          onHostChange={setHost}
+          onNicknameChange={setNickname}
+          onServerPasswordChange={setServerPassword}
+          onChannelPasswordChange={setChannelPassword}
+          onDefaultChannelChange={setDefaultChannel}
+          onToggleExpanded={() => setConnectDialogExpanded((v) => !v)}
+          onConnect={handleConnect}
+          onCancel={() => setConnectDialogOpen(false)}
+        />
+      )}
 
       {connectError && (
         <div className="ts-connect-error">
@@ -737,47 +995,85 @@ function App() {
       ))}
 
       <div className="ts-body">
-        <div className="ts-tree-panel">
-          {connected ? (
-            <>
-              <div
-                className={`ts-row ts-server-row${selected?.type === "server" ? " ts-row-selected" : ""}`}
-                onClick={() => handleSelectItem({ type: "server" })}
-              >
-                <ServerIcon />
-                <span>{serverName || host}</span>
+        <div className="ts-upper" style={{ height: upperHeight }}>
+          <div className="ts-tree-panel" style={{ width: treeWidth }}>
+            {connected ? (
+              <>
+                <div
+                  className={`ts-row ts-server-row${selected?.type === "server" ? " ts-row-selected" : ""}`}
+                  onClick={() => handleSelectItem({ type: "server" })}
+                >
+                  <ServerIcon />
+                  <span>{serverName || host}</span>
+                </div>
+                <ChannelTree
+                  channels={channels}
+                  clients={clients}
+                  parent={0}
+                  ownClientId={ownClient?.id ?? null}
+                  talkers={displayTalkers}
+                  selected={selected}
+                  onSelectItem={handleSelectItem}
+                  onSwitchChannel={handleSwitchChannel}
+                  onOpenPrivateChat={handleOpenPrivateChat}
+                  onPokeClient={handlePokeClient}
+                />
+              </>
+            ) : (
+              <div className="ts-tree-empty">Not connected</div>
+            )}
+          </div>
+
+          <div className="ts-resize-handle-vertical" onMouseDown={startTreeResize} />
+
+          <div className="ts-side-panel">
+            {connected && serverBannerUrl && (
+              <div className="ts-banner-panel">
+                <img className="ts-server-banner" src={serverBannerUrl} alt="" />
               </div>
-              <ChannelTree
+            )}
+            {connected && (
+              <InfoPanel
+                selected={selected}
+                host={host}
+                serverName={serverName}
+                serverMaxClients={serverMaxClients}
+                serverVersion={serverVersion}
+                serverLicense={serverLicense}
+                totalClientCount={clients.length}
                 channels={channels}
                 clients={clients}
-                parent={0}
-                ownClientId={ownClient?.id ?? null}
-                talkers={displayTalkers}
-                selected={selected}
-                onSelectItem={handleSelectItem}
-                onSwitchChannel={handleSwitchChannel}
-                onOpenPrivateChat={handleOpenPrivateChat}
-                onPokeClient={handlePokeClient}
               />
-            </>
-          ) : (
-            <div className="ts-tree-empty">Not connected</div>
-          )}
+            )}
+          </div>
         </div>
 
-        <div className="ts-main-panel">
-        {connected && (
-          <InfoPanel
-            selected={selected}
-            host={host}
-            serverName={serverName}
-            serverMaxClients={serverMaxClients}
-            totalClientCount={clients.length}
-            channels={channels}
-            clients={clients}
-          />
-        )}
+        <div className="ts-resize-handle-horizontal" onMouseDown={startUpperResize} />
+
         <div className="ts-chat-panel">
+          <div className="ts-chat-messages">
+            {activeTab === "channel"
+              ? chat.map((entry, i) => (
+                  <div key={i} className="ts-chat-line">
+                    <span className="ts-chat-from">{entry.from}:</span> <span>{entry.message}</span>
+                  </div>
+                ))
+              : activeTab === "server"
+                ? serverChat.map((entry, i) => (
+                    <div key={i} className="ts-chat-line">
+                      <span className="ts-chat-from">{entry.from}:</span> <span>{entry.message}</span>
+                    </div>
+                  ))
+                : pmThreads[activeTab]?.messages.map((entry, i) => (
+                    <div key={i} className="ts-chat-line">
+                      <span className="ts-chat-from">
+                        {entry.fromSelf ? "You" : pmThreads[activeTab].partnerName}:
+                      </span>{" "}
+                      <span>{entry.message}</span>
+                    </div>
+                  ))}
+            <div ref={chatEndRef} />
+          </div>
           <div className="ts-chat-tabs">
             <button
               className={`ts-chat-tab${activeTab === "server" ? " ts-chat-tab-active" : ""}`}
@@ -812,29 +1108,6 @@ function App() {
               </button>
             ))}
           </div>
-          <div className="ts-chat-messages">
-            {activeTab === "channel"
-              ? chat.map((entry, i) => (
-                  <div key={i} className="ts-chat-line">
-                    <span className="ts-chat-from">{entry.from}:</span> <span>{entry.message}</span>
-                  </div>
-                ))
-              : activeTab === "server"
-                ? serverChat.map((entry, i) => (
-                    <div key={i} className="ts-chat-line">
-                      <span className="ts-chat-from">{entry.from}:</span> <span>{entry.message}</span>
-                    </div>
-                  ))
-                : pmThreads[activeTab]?.messages.map((entry, i) => (
-                    <div key={i} className="ts-chat-line">
-                      <span className="ts-chat-from">
-                        {entry.fromSelf ? "You" : pmThreads[activeTab].partnerName}:
-                      </span>{" "}
-                      <span>{entry.message}</span>
-                    </div>
-                  ))}
-            <div ref={chatEndRef} />
-          </div>
           <div className="ts-chat-input-row">
             <input
               value={chatInput}
@@ -855,7 +1128,6 @@ function App() {
               Send
             </button>
           </div>
-        </div>
         </div>
       </div>
 

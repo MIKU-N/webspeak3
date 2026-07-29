@@ -70,6 +70,72 @@
   cursor: default;
 }
 
+.ts-menubar-item-active {
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 2px;
+}
+
+.ts-menubar-item-active:hover {
+  background: var(--row-hover);
+}
+
+.ts-menubar-dropdown {
+  position: relative;
+}
+
+.ts-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 260px;
+  padding: 0.25rem;
+  background: var(--bg-toolbar-1);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.ts-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 0.35rem 0.5rem;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+
+.ts-menu-item:hover:not(:disabled) {
+  background: var(--row-hover);
+}
+
+.ts-menu-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ts-menu-item-icon {
+  width: 1.1rem;
+  text-align: center;
+}
+
+.ts-menu-item-label {
+  flex: 1;
+}
+
+.ts-menu-item-shortcut {
+  color: var(--text-muted);
+}
+
 .ts-toolbar {
   display: flex;
   flex-direction: column;
@@ -205,29 +271,72 @@
 .ts-body {
   flex: 1;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: var(--bg);
 }
 
+.ts-upper {
+  display: flex;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
 .ts-tree-panel {
-  width: 260px;
   flex-shrink: 0;
   overflow-y: auto;
   padding: 0.4rem 0.5rem;
-  border-right: 1px solid var(--border-soft);
 }
 
-.ts-main-panel {
+.ts-resize-handle-vertical {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: var(--border-soft);
+}
+
+.ts-resize-handle-vertical:hover,
+.ts-resize-handle-horizontal:hover {
+  background: var(--accent);
+}
+
+.ts-resize-handle-horizontal {
+  height: 4px;
+  flex-shrink: 0;
+  cursor: row-resize;
+  background: var(--border-soft);
+}
+
+.ts-side-panel {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-width: 0;
+}
+
+.ts-banner-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.ts-server-banner {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .ts-info-panel {
   flex-shrink: 0;
+  overflow-y: auto;
   padding: 0.6rem 0.9rem;
-  border-bottom: 1px solid var(--border-soft);
   background: var(--bg-toolbar-1);
 }
 
@@ -358,8 +467,8 @@
   flex-shrink: 0;
   display: flex;
   gap: 2px;
-  padding: 0.3rem 0.5rem 0;
-  border-bottom: 1px solid var(--border-soft);
+  padding: 0 0.5rem 0.3rem;
+  border-top: 1px solid var(--border-soft);
   overflow-x: auto;
 }
 
@@ -368,8 +477,8 @@
   align-items: center;
   gap: 0.4rem;
   border: 1px solid var(--border-soft);
-  border-bottom: none;
-  border-radius: 3px 3px 0 0;
+  border-top: none;
+  border-radius: 0 0 3px 3px;
   background: var(--bg-toolbar-1);
   color: var(--text-muted);
   padding: 0.25rem 0.6rem;
@@ -485,6 +594,137 @@
 
 .ts-connect-error button:hover {
   opacity: 1;
+}
+
+.ts-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+}
+
+.ts-dialog {
+  background: var(--bg-toolbar-1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  color: var(--text);
+}
+
+.ts-connect-dialog {
+  width: 480px;
+}
+
+.ts-dialog-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-soft);
+  font-weight: 600;
+}
+
+.ts-dialog-titlebar button {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.ts-dialog-titlebar button:hover {
+  color: var(--text);
+}
+
+.ts-dialog-body {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.ts-dialog-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.ts-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ts-dialog-field-grow {
+  flex: 1;
+}
+
+.ts-dialog-field input,
+.ts-dialog-field select {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0.3rem 0.4rem;
+  font-size: 13px;
+  background: var(--input-bg);
+  color: var(--input-text);
+}
+
+.ts-dialog-field input:disabled,
+.ts-dialog-field select:disabled {
+  opacity: 0.5;
+}
+
+.ts-dialog-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+.ts-dialog-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 12px;
+  color: var(--text-muted);
+  align-self: end;
+}
+
+.ts-dialog-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+.ts-dialog-buttons-right {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ts-dialog-buttons button {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, var(--button-bg-1), var(--button-bg-2));
+  color: var(--text);
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.ts-dialog-buttons button:hover:not(:disabled) {
+  background: linear-gradient(to bottom, var(--button-bg-hover-1), var(--button-bg-hover-2));
+}
+
+.ts-dialog-buttons button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .ts-poke-compose-backdrop {

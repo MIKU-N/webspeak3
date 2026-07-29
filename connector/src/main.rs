@@ -39,6 +39,10 @@ struct Args {
 	/// Password for the default channel to join, if it's password-protected
 	#[arg(long)]
 	channel_password: Option<String>,
+	/// Channel (name or path, e.g. "Default Channel/Nested") to join on connect,
+	/// instead of the server's actual default channel
+	#[arg(long)]
+	default_channel: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -69,7 +73,14 @@ struct ClientInfo {
 #[serde(tag = "type")]
 enum Event {
 	#[serde(rename = "connected")]
-	Connected { welcome_message: String, server_name: String, server_max_clients: u16 },
+	Connected {
+		welcome_message: String,
+		server_name: String,
+		server_max_clients: u16,
+		server_version: String,
+		server_license: String,
+		server_banner_url: String,
+	},
 	#[serde(rename = "channels")]
 	Channels { channels: Vec<ChannelInfo>, clients: Vec<ClientInfo> },
 	#[serde(rename = "chatMessage")]
@@ -214,6 +225,9 @@ async fn run(args: Args) -> Result<()> {
 	if let Some(pwd) = args.channel_password {
 		con_config = con_config.channel_password(pwd);
 	}
+	if let Some(channel) = args.default_channel {
+		con_config = con_config.channel(channel);
+	}
 
 	let mut con = con_config.connect().map_err(|e| friendly_connect_error(&address, e))?;
 
@@ -242,7 +256,17 @@ async fn run(args: Args) -> Result<()> {
 	let welcome_message = server_state.server.welcome_message.clone();
 	let server_name = server_state.server.name.clone();
 	let server_max_clients = server_state.server.max_clients;
-	emit(&Event::Connected { welcome_message, server_name, server_max_clients });
+	let server_version = server_state.server.version.clone();
+	let server_license = format!("{:?}", server_state.server.license);
+	let server_banner_url = server_state.server.hostbanner_gfx_url.clone();
+	emit(&Event::Connected {
+		welcome_message,
+		server_name,
+		server_max_clients,
+		server_version,
+		server_license,
+		server_banner_url,
+	});
 
 	// Subscribe to all channels so we actually receive the full channel/client list.
 	con.get_state()?.server.set_subscribed(true).send(&mut con)?;

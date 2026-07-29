@@ -33,7 +33,15 @@ export interface ClientInfo {
 }
 
 export type Ts3ConnectionEvent =
-  | { type: "connected"; welcomeMessage: string; serverName: string; serverMaxClients: number }
+  | {
+      type: "connected";
+      welcomeMessage: string;
+      serverName: string;
+      serverMaxClients: number;
+      serverVersion: string;
+      serverLicense: string;
+      serverBannerUrl: string;
+    }
   | { type: "channels"; channels: ChannelInfo[]; clients: ClientInfo[] }
   | { type: "chatMessage"; from: string; message: string }
   | { type: "serverMessage"; from: string; message: string }
@@ -49,6 +57,7 @@ export interface Ts3ConnectOptions {
   nickname: string;
   serverPassword?: string;
   channelPassword?: string;
+  defaultChannel?: string;
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -76,6 +85,7 @@ export class Ts3Connection {
     const args = ["--address", this.options.host, "--nickname", this.options.nickname];
     if (this.options.serverPassword) args.push("--server-password", this.options.serverPassword);
     if (this.options.channelPassword) args.push("--channel-password", this.options.channelPassword);
+    if (this.options.defaultChannel) args.push("--default-channel", this.options.defaultChannel);
     this.child = spawn(CONNECTOR_BIN, args);
 
     createInterface({ input: this.child.stdout }).on("line", (line) => {
@@ -103,7 +113,15 @@ export class Ts3Connection {
         }
 
         const event = JSON.parse(line) as
-          | { type: "connected"; welcome_message: string; server_name: string; server_max_clients: number }
+          | {
+              type: "connected";
+              welcome_message: string;
+              server_name: string;
+              server_max_clients: number;
+              server_version: string;
+              server_license: string;
+              server_banner_url: string;
+            }
           | { type: "channels"; channels: RawChannelInfo[]; clients: RawClientInfo[] }
           | { type: "chatMessage"; from: string; message: string }
           | { type: "serverMessage"; from: string; message: string }
@@ -120,6 +138,9 @@ export class Ts3Connection {
             welcomeMessage: event.welcome_message,
             serverName: event.server_name,
             serverMaxClients: event.server_max_clients,
+            serverVersion: event.server_version,
+            serverLicense: event.server_license,
+            serverBannerUrl: event.server_banner_url,
           });
         } else if (event.type === "channels") {
           this.emit({

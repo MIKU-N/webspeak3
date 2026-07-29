@@ -136,6 +136,12 @@
   color: var(--text-muted);
 }
 
+.ts-menu-separator {
+  height: 1px;
+  margin: 0.25rem 0.3rem;
+  background: var(--border-soft);
+}
+
 .ts-toolbar {
   display: flex;
   flex-direction: column;
@@ -454,6 +460,55 @@
   background: color-mix(in srgb, #4caf50 30%, var(--button-bg-1)) !important;
 }
 
+.ts-muted-on {
+  background: color-mix(in srgb, var(--log-error) 30%, var(--button-bg-1)) !important;
+}
+
+.ts-client-away-message {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 11px;
+}
+
+.ts-toolbar-away {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ts-icon-caret {
+  border: 1px solid var(--border);
+  border-left: none;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(to bottom, var(--button-bg-1), var(--button-bg-2));
+  color: var(--text);
+  padding: 0.25rem 0.3rem;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.ts-icon-caret:hover:not(:disabled) {
+  background: linear-gradient(to bottom, var(--button-bg-hover-1), var(--button-bg-hover-2));
+}
+
+.ts-icon-caret:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ts-toolbar-away .ts-icon-button {
+  border-radius: 3px 0 0 3px;
+}
+
+.ts-away-on {
+  background: color-mix(in srgb, #e8a53d 30%, var(--button-bg-1)) !important;
+}
+
+.ts-menu-away {
+  min-width: 220px;
+}
+
 /* Chat */
 
 .ts-chat-panel {
@@ -616,6 +671,116 @@
 
 .ts-connect-dialog {
   width: 480px;
+}
+
+.ts-favorites-dialog {
+  width: 760px;
+}
+
+.ts-away-dialog {
+  width: 420px;
+}
+
+.ts-away-dialog .ts-dialog-row {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ts-dialog-away-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ts-away-dialog .ts-dialog-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ts-away-message-input {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0.6rem;
+  font-size: 13px;
+  background: var(--input-bg);
+  color: var(--input-text);
+}
+
+.ts-favorites-body {
+  display: flex;
+  gap: 0;
+}
+
+.ts-favorites-list-col {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-soft);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.ts-favorites-list-group-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 0.4rem;
+}
+
+.ts-favorites-list-group-title:first-child {
+  margin-top: 0;
+}
+
+.ts-favorites-list-empty {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.ts-favorites-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.ts-favorites-list-item {
+  padding: 0.3rem 0.4rem;
+  border-radius: 2px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ts-favorites-list-item:hover {
+  background: var(--row-hover);
+}
+
+.ts-favorites-list-item-selected {
+  background: var(--row-hover);
+  outline: 1px solid var(--border);
+}
+
+.ts-favorites-fields-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem;
+}
+
+.ts-favorites-profile-col {
+  width: 200px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border-soft);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 
 .ts-dialog-titlebar {

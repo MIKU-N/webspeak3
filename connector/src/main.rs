@@ -66,6 +66,7 @@ struct ClientInfo {
 	output_muted: bool,
 	input_hardware_enabled: bool,
 	away: bool,
+	away_message: String,
 	is_channel_commander: bool,
 }
 
@@ -179,6 +180,7 @@ fn snapshot(con: &data::Connection) -> Event {
 			output_muted: c.output_muted,
 			input_hardware_enabled: c.input_hardware_enabled,
 			away: c.away_message.is_some(),
+			away_message: c.away_message.clone().unwrap_or_default(),
 			is_channel_commander: c.is_channel_commander,
 		})
 		.collect();
@@ -405,6 +407,27 @@ async fn run(args: Args) -> Result<()> {
 								}
 							}
 							Err(_) => emit(&Event::Error { message: format!("Invalid client id: {id}") }),
+						}
+					} else if l == "away" || l.starts_with("away ") {
+						let message = l.strip_prefix("away").unwrap_or("").trim();
+						let part = con.get_state()?.client_update().set_away(Some(message));
+						if let Err(e) = part.send(&mut con) {
+							emit(&Event::Error { message: e.to_string() });
+						}
+					} else if l == "unaway" {
+						let part = con.get_state()?.client_update().set_away(None);
+						if let Err(e) = part.send(&mut con) {
+							emit(&Event::Error { message: e.to_string() });
+						}
+					} else if let Some(rest) = l.strip_prefix("muteinput ") {
+						let part = con.get_state()?.client_update().set_input_muted(rest.trim() == "1");
+						if let Err(e) = part.send(&mut con) {
+							emit(&Event::Error { message: e.to_string() });
+						}
+					} else if let Some(rest) = l.strip_prefix("muteoutput ") {
+						let part = con.get_state()?.client_update().set_output_muted(rest.trim() == "1");
+						if let Err(e) = part.send(&mut con) {
+							emit(&Event::Error { message: e.to_string() });
 						}
 					} else if let Some(b64) = l.strip_prefix("audio ") {
 						match base64::engine::general_purpose::STANDARD.decode(b64.trim()) {

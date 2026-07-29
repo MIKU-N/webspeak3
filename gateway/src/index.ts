@@ -51,6 +51,18 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.sendAudio(msg.pcm);
         break;
       }
+      case "setAway": {
+        await connection?.setAway(msg.away, msg.message ?? "");
+        break;
+      }
+      case "setInputMuted": {
+        await connection?.setInputMuted(msg.muted);
+        break;
+      }
+      case "setOutputMuted": {
+        await connection?.setOutputMuted(msg.muted);
+        break;
+      }
       default:
         socket.send(
           JSON.stringify({ type: "error", message: `Unknown message type: ${msg.type}` })

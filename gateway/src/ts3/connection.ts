@@ -29,6 +29,7 @@ export interface ClientInfo {
   outputMuted: boolean;
   inputHardwareEnabled: boolean;
   away: boolean;
+  awayMessage: string;
   isChannelCommander: boolean;
 }
 
@@ -98,6 +99,7 @@ export class Ts3Connection {
           output_muted: boolean;
           input_hardware_enabled: boolean;
           away: boolean;
+          away_message: string;
           is_channel_commander: boolean;
         }
 
@@ -163,6 +165,7 @@ export class Ts3Connection {
               outputMuted: c.output_muted,
               inputHardwareEnabled: c.input_hardware_enabled,
               away: c.away,
+              awayMessage: c.away_message,
               isChannelCommander: c.is_channel_commander,
             })),
           });
@@ -221,6 +224,23 @@ export class Ts3Connection {
 
   async sendAudio(pcmBase64: string): Promise<void> {
     this.child?.stdin.write(`audio ${pcmBase64}\n`);
+  }
+
+  async setAway(away: boolean, message: string): Promise<void> {
+    if (away) {
+      const sanitized = message.replace(/[\r\n]+/g, " ").trim();
+      this.child?.stdin.write(`away ${sanitized}\n`);
+    } else {
+      this.child?.stdin.write("unaway\n");
+    }
+  }
+
+  async setInputMuted(muted: boolean): Promise<void> {
+    this.child?.stdin.write(`muteinput ${muted ? "1" : "0"}\n`);
+  }
+
+  async setOutputMuted(muted: boolean): Promise<void> {
+    this.child?.stdin.write(`muteoutput ${muted ? "1" : "0"}\n`);
   }
 
   async disconnect(): Promise<void> {

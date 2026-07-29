@@ -13,6 +13,37 @@ const GATEWAY_URL = "ws://localhost:8080";
 
 const LAST_HOST_KEY = "ts-web-client:last-host";
 const LAST_NICKNAME_KEY = "ts-web-client:last-nickname";
+const FAVORITES_KEY = "ts-web-client:favorites";
+
+interface Favorite {
+  id: string;
+  bookmarkName: string;
+  nickname: string;
+  host: string;
+  serverPassword: string;
+  defaultChannel: string;
+  defaultChannelPassword: string;
+}
+
+function loadFavorites(): Favorite[] {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    return raw ? (JSON.parse(raw) as Favorite[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+const AWAY_PRESETS_KEY = "ts-web-client:away-presets";
+
+function loadAwayPresets(): string[] {
+  try {
+    const raw = localStorage.getItem(AWAY_PRESETS_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 type LogEntry = { text: string; kind: "info" | "error" };
 
@@ -37,6 +68,7 @@ interface ClientInfo {
   outputMuted: boolean;
   inputHardwareEnabled: boolean;
   away: boolean;
+  awayMessage: string;
   isChannelCommander: boolean;
 }
 
@@ -141,6 +173,9 @@ function ChannelTree({
                   >
                     <ClientIcon />
                     <span>{c.name}</span>
+                    {c.away && c.awayMessage && (
+                      <span className="ts-client-away-message">({c.awayMessage})</span>
+                    )}
                     <ClientStatusIcons client={c} />
                     {c.id !== ownClientId && (
                       <button
@@ -418,6 +453,283 @@ function ConnectDialog({
   );
 }
 
+function FavoritesDialog({
+  favorites,
+  prefillNew,
+  onSave,
+  onClose,
+}: {
+  favorites: Favorite[];
+  prefillNew?: Omit<Favorite, "id" | "bookmarkName">;
+  onSave: (favorites: Favorite[]) => void;
+  onClose: () => void;
+}) {
+  const pendingNewRef = useRef<Favorite | null>(
+    prefillNew
+      ? {
+          id: crypto.randomUUID(),
+          bookmarkName: prefillNew.host || "Neuer Favorit",
+          ...prefillNew,
+        }
+      : null
+  );
+  const [draft, setDraft] = useState<Favorite[]>(() =>
+    pendingNewRef.current ? [...favorites, pendingNewRef.current] : favorites.map((f) => ({ ...f }))
+  );
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    pendingNewRef.current ? pendingNewRef.current.id : (favorites[0]?.id ?? null)
+  );
+
+  const selected = draft.find((f) => f.id === selectedId) ?? null;
+
+  const updateSelected = (patch: Partial<Favorite>) => {
+    if (!selectedId) return;
+    setDraft((prev) => prev.map((f) => (f.id === selectedId ? { ...f, ...patch } : f)));
+  };
+
+  const handleNewFavorite = () => {
+    const nf: Favorite = {
+      id: crypto.randomUUID(),
+      bookmarkName: "Neuer Favorit",
+      nickname: "",
+      host: "",
+      serverPassword: "",
+      defaultChannel: "",
+      defaultChannelPassword: "",
+    };
+    setDraft((prev) => [...prev, nf]);
+    setSelectedId(nf.id);
+  };
+
+  const handleRemove = () => {
+    if (!selectedId) return;
+    setDraft((prev) => prev.filter((f) => f.id !== selectedId));
+    setSelectedId(null);
+  };
+
+  return (
+    <div className="ts-dialog-backdrop" onClick={onClose}>
+      <div className="ts-dialog ts-favorites-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>🔖 myTeamSpeak Favoriten</span>
+          <button onClick={onClose} title="Close">
+            ✕
+          </button>
+        </div>
+        <div className="ts-favorites-body">
+          <div className="ts-favorites-list-col">
+            <div className="ts-favorites-list-group-title">Synchronisierte Favoriten</div>
+            <div className="ts-favorites-list-empty">Nicht angemeldet</div>
+            <div className="ts-favorites-list-group-title">Lokale Favoriten</div>
+            <ul className="ts-favorites-list">
+              {draft.map((f) => (
+                <li
+                  key={f.id}
+                  className={`ts-favorites-list-item${f.id === selectedId ? " ts-favorites-list-item-selected" : ""}`}
+                  onClick={() => setSelectedId(f.id)}
+                >
+                  {f.bookmarkName || "(unbenannt)"}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="ts-favorites-fields-col">
+            <label className="ts-dialog-field">
+              Bookmark Name:
+              <input
+                disabled={!selected}
+                value={selected?.bookmarkName ?? ""}
+                onChange={(e) => updateSelected({ bookmarkName: e.target.value })}
+              />
+            </label>
+            <label className="ts-dialog-field">
+              Nickname:
+              <input
+                disabled={!selected}
+                value={selected?.nickname ?? ""}
+                onChange={(e) => updateSelected({ nickname: e.target.value })}
+              />
+            </label>
+            <label className="ts-dialog-field">
+              Phonetischer Nickname:
+              <input disabled title="Not supported yet" />
+            </label>
+            <label className="ts-dialog-field">
+              Server Nickname oder Adresse:
+              <input
+                disabled={!selected}
+                value={selected?.host ?? ""}
+                onChange={(e) => updateSelected({ host: e.target.value })}
+              />
+            </label>
+            <label className="ts-dialog-field">
+              Server Passwort:
+              <input
+                type="password"
+                disabled={!selected}
+                value={selected?.serverPassword ?? ""}
+                onChange={(e) => updateSelected({ serverPassword: e.target.value })}
+              />
+            </label>
+            <label className="ts-dialog-field">
+              Standard Channel:
+              <input
+                disabled={!selected}
+                value={selected?.defaultChannel ?? ""}
+                onChange={(e) => updateSelected({ defaultChannel: e.target.value })}
+              />
+            </label>
+            <label className="ts-dialog-field">
+              Standard Channel Passwort:
+              <input
+                type="password"
+                disabled={!selected}
+                value={selected?.defaultChannelPassword ?? ""}
+                onChange={(e) => updateSelected({ defaultChannelPassword: e.target.value })}
+              />
+            </label>
+          </div>
+
+          <div className="ts-favorites-profile-col">
+            <label className="ts-dialog-field">
+              Identität:
+              <select disabled defaultValue="Standard">
+                <option>Standard</option>
+              </select>
+            </label>
+            <label className="ts-dialog-field">
+              Aufnahmeprofil:
+              <select disabled defaultValue="Standard">
+                <option>Standard</option>
+              </select>
+            </label>
+            <label className="ts-dialog-field">
+              Wiedergabeprofil:
+              <select disabled defaultValue="Standard">
+                <option>Standard</option>
+              </select>
+            </label>
+            <label className="ts-dialog-field">
+              Hotkeyprofil:
+              <select disabled defaultValue="Standard">
+                <option>Standard</option>
+              </select>
+            </label>
+            <label className="ts-dialog-field">
+              Sound Pack:
+              <select disabled defaultValue="Standard">
+                <option>Standard</option>
+              </select>
+            </label>
+            <label className="ts-dialog-checkbox">
+              <input type="checkbox" disabled defaultChecked title="Not supported yet" />
+              ServerQuery Clients anzeigen
+            </label>
+            <label className="ts-dialog-checkbox">
+              <input type="checkbox" disabled title="Not supported yet" />
+              Beim Start verbinden
+            </label>
+            <label className="ts-dialog-checkbox">
+              <input type="checkbox" disabled title="Not supported yet" />
+              Aktiviere myTeamSpeak Funktionen
+            </label>
+          </div>
+        </div>
+        <div className="ts-dialog-buttons">
+          <div className="ts-dialog-buttons-right">
+            <button onClick={handleNewFavorite}>Neuer Favorit</button>
+            <button disabled title="Not supported in the web client">
+              Neuer Ordner
+            </button>
+            <button onClick={handleRemove} disabled={!selected}>
+              Entfernen
+            </button>
+          </div>
+          <div className="ts-dialog-buttons-right">
+            <button
+              onClick={() => {
+                onSave(draft);
+                onClose();
+              }}
+            >
+              OK
+            </button>
+            <button onClick={onClose}>Abbrechen</button>
+            <button onClick={() => onSave(draft)}>Anwenden</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AwayDialog({
+  message,
+  presets,
+  onMessageChange,
+  onOk,
+  onSaveTemplate,
+  onCancel,
+}: {
+  message: string;
+  presets: string[];
+  onMessageChange: (v: string) => void;
+  onOk: () => void;
+  onSaveTemplate: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="ts-dialog-backdrop" onClick={onCancel}>
+      <div className="ts-dialog ts-away-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>Abwesenheit-Nachricht setzen</span>
+          <button onClick={onCancel} title="Close">
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          <div className="ts-dialog-row">
+            <span className="ts-dialog-away-label">Nachricht:</span>
+            <label className="ts-dialog-field">
+              Vorlage:
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) onMessageChange(e.target.value);
+                }}
+              >
+                <option value="">&lt;None&gt;</option>
+                {presets.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <input
+            autoFocus
+            className="ts-away-message-input"
+            value={message}
+            onChange={(e) => onMessageChange(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onOk()}
+          />
+        </div>
+        <div className="ts-dialog-buttons">
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onOk}>OK</button>
+            <button onClick={onSaveTemplate} disabled={!message.trim()}>
+              Speichern
+            </button>
+            <button onClick={onCancel}>Abbrechen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [host, setHost] = useState(() => localStorage.getItem(LAST_HOST_KEY) ?? "localhost");
   const [nickname, setNickname] = useState(() => localStorage.getItem(LAST_NICKNAME_KEY) ?? "Claude Code");
@@ -459,8 +771,19 @@ function App() {
   const [outputDeviceId, setOutputDeviceId] = useState("");
   const [outputDeviceLabel, setOutputDeviceLabel] = useState("System default");
   const [connectionsMenuOpen, setConnectionsMenuOpen] = useState(false);
+  const [favorites, setFavorites] = useState<Favorite[]>(() => loadFavorites());
+  const [favoritesMenuOpen, setFavoritesMenuOpen] = useState(false);
+  const [favoritesDialogMode, setFavoritesDialogMode] = useState<
+    { kind: "add"; prefill: Omit<Favorite, "id" | "bookmarkName"> } | { kind: "manage" } | null
+  >(null);
+  const [awayMenuOpen, setAwayMenuOpen] = useState(false);
+  const [awayDialogOpen, setAwayDialogOpen] = useState(false);
+  const [awayDialogMessage, setAwayDialogMessage] = useState("");
+  const [awayPresets, setAwayPresets] = useState<string[]>(() => loadAwayPresets());
   const socketRef = useRef<WebSocket | null>(null);
   const connectionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const favoritesMenuRef = useRef<HTMLDivElement | null>(null);
+  const awayMenuRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioPlayerRef = useRef<AudioPlayer | null>(null);
@@ -468,10 +791,18 @@ function App() {
   const activeTabRef = useRef<ActiveTab>("channel");
   const hasConnectedRef = useRef(false);
   const pokeIdRef = useRef(0);
+  const inputMutedRef = useRef(false);
+  const outputMutedRef = useRef(false);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: "nearest" });
   }, [chat, serverChat, pmThreads, activeTab]);
+
+  useEffect(() => {
+    const own = clients.find((c) => c.name === nickname) ?? null;
+    inputMutedRef.current = own?.inputMuted ?? false;
+    outputMutedRef.current = own?.outputMuted ?? false;
+  }, [clients, nickname]);
 
   useEffect(() => {
     if (micCaptureRef.current) micCaptureRef.current.threshold = vadThreshold;
@@ -545,7 +876,19 @@ function App() {
     setSelfActive(false);
   };
 
-  const handleConnect = () => {
+  const handleConnect = (overrides?: {
+    host?: string;
+    nickname?: string;
+    serverPassword?: string;
+    channelPassword?: string;
+    defaultChannel?: string;
+  }) => {
+    const connectHost = overrides?.host ?? host;
+    const connectNickname = overrides?.nickname ?? nickname;
+    const connectServerPassword = overrides?.serverPassword ?? serverPassword;
+    const connectChannelPassword = overrides?.channelPassword ?? channelPassword;
+    const connectDefaultChannel = overrides?.defaultChannel ?? defaultChannel;
+
     hasConnectedRef.current = false;
     setConnecting(true);
     setConnectError(null);
@@ -562,11 +905,11 @@ function App() {
       socket.send(
         JSON.stringify({
           type: "connect",
-          host,
-          nickname,
-          serverPassword: serverPassword || undefined,
-          channelPassword: channelPassword || undefined,
-          defaultChannel: defaultChannel || undefined,
+          host: connectHost,
+          nickname: connectNickname,
+          serverPassword: connectServerPassword || undefined,
+          channelPassword: connectChannelPassword || undefined,
+          defaultChannel: connectDefaultChannel || undefined,
         })
       );
     };
@@ -579,8 +922,8 @@ function App() {
           setConnecting(false);
           setConnectError(null);
           setConnected(true);
-          localStorage.setItem(LAST_HOST_KEY, host);
-          localStorage.setItem(LAST_NICKNAME_KEY, nickname);
+          localStorage.setItem(LAST_HOST_KEY, connectHost);
+          localStorage.setItem(LAST_NICKNAME_KEY, connectNickname);
           setServerName(data.serverName);
           setServerMaxClients(data.serverMaxClients);
           setServerVersion(data.serverVersion);
@@ -620,7 +963,7 @@ function App() {
           });
           break;
         case "audioOut":
-          audioPlayerRef.current?.playFrame(data.pcm);
+          if (!outputMutedRef.current) audioPlayerRef.current?.playFrame(data.pcm);
           break;
         case "talkers":
           setTalkers(new Set<number>(data.clients));
@@ -682,6 +1025,66 @@ function App() {
 
   const handleDisconnect = () => socketRef.current?.close();
 
+  const connectToFavorite = (f: Favorite) => {
+    setHost(f.host);
+    setNickname(f.nickname);
+    setServerPassword(f.serverPassword);
+    setChannelPassword(f.defaultChannelPassword);
+    setDefaultChannel(f.defaultChannel);
+    handleConnect({
+      host: f.host,
+      nickname: f.nickname,
+      serverPassword: f.serverPassword,
+      channelPassword: f.defaultChannelPassword,
+      defaultChannel: f.defaultChannel,
+    });
+  };
+
+  const saveFavorites = (next: Favorite[]) => {
+    setFavorites(next);
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(next));
+  };
+
+  const openAddFavorite = () => {
+    setFavoritesDialogMode({
+      kind: "add",
+      prefill: {
+        host,
+        nickname,
+        serverPassword,
+        defaultChannel,
+        defaultChannelPassword: channelPassword,
+      },
+    });
+    setFavoritesMenuOpen(false);
+  };
+
+  const openManageFavorites = () => {
+    setFavoritesDialogMode({ kind: "manage" });
+    setFavoritesMenuOpen(false);
+  };
+
+  const sendAway = (away: boolean, message: string) => {
+    socketRef.current?.send(JSON.stringify({ type: "setAway", away, message }));
+  };
+
+  const handleSaveAwayTemplate = () => {
+    const trimmed = awayDialogMessage.trim();
+    if (!trimmed) return;
+    setAwayPresets((prev) => {
+      if (prev.includes(trimmed)) return prev;
+      const next = [...prev, trimmed];
+      localStorage.setItem(AWAY_PRESETS_KEY, JSON.stringify(next));
+      return next;
+    });
+    setAwayDialogOpen(false);
+  };
+
+  const handleConfirmAway = () => {
+    sendAway(true, awayDialogMessage);
+    setAwayDialogOpen(false);
+  };
+
   useEffect(() => {
     if (!connectionsMenuOpen) return;
     const onPointerDown = (e: MouseEvent) => {
@@ -699,6 +1102,38 @@ function App() {
   }, [connectionsMenuOpen]);
 
   useEffect(() => {
+    if (!favoritesMenuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (!favoritesMenuRef.current?.contains(e.target as Node)) setFavoritesMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFavoritesMenuOpen(false);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [favoritesMenuOpen]);
+
+  useEffect(() => {
+    if (!awayMenuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (!awayMenuRef.current?.contains(e.target as Node)) setAwayMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAwayMenuOpen(false);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [awayMenuOpen]);
+
+  useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!e.ctrlKey) return;
       if (e.key.toLowerCase() === "s" && !connected && !connecting) {
@@ -707,33 +1142,42 @@ function App() {
       } else if (e.key.toLowerCase() === "d" && connected) {
         e.preventDefault();
         handleDisconnect();
+      } else if (e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        openAddFavorite();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [connected, connecting]);
+  }, [connected, connecting, host, nickname, serverPassword, defaultChannel, channelPassword]);
 
   const handleToggleMic = async () => {
-    if (micOn) {
-      stopMic();
+    if (!micOn) {
+      const audioContext = audioContextRef.current;
+      if (!audioContext) return;
+      try {
+        const mic = new MicCapture(
+          audioContext,
+          (pcm) => {
+            if (!inputMutedRef.current) socketRef.current?.send(JSON.stringify({ type: "sendAudio", pcm }));
+          },
+          (active) => setSelfActive(active),
+          vadThreshold
+        );
+        await mic.start();
+        micCaptureRef.current = mic;
+        setMicOn(true);
+        refreshOutputDevices();
+      } catch (error) {
+        appendLog({ text: `Microphone error: ${(error as Error).message}`, kind: "error" });
+      }
       return;
     }
-    const audioContext = audioContextRef.current;
-    if (!audioContext) return;
-    try {
-      const mic = new MicCapture(
-        audioContext,
-        (pcm) => socketRef.current?.send(JSON.stringify({ type: "sendAudio", pcm })),
-        (active) => setSelfActive(active),
-        vadThreshold
-      );
-      await mic.start();
-      micCaptureRef.current = mic;
-      setMicOn(true);
-      refreshOutputDevices();
-    } catch (error) {
-      appendLog({ text: `Microphone error: ${(error as Error).message}`, kind: "error" });
-    }
+    socketRef.current?.send(JSON.stringify({ type: "setInputMuted", muted: !inputMutedRef.current }));
+  };
+
+  const handleToggleOutputMuted = () => {
+    socketRef.current?.send(JSON.stringify({ type: "setOutputMuted", muted: !outputMutedRef.current }));
   };
 
   const handleOutputDeviceChange = async (deviceId: string, label?: string) => {
@@ -802,6 +1246,9 @@ function App() {
   };
 
   const ownClient = clients.find((c) => c.name === nickname) ?? null;
+  const isAway = ownClient?.away ?? false;
+  const inputMuted = ownClient?.inputMuted ?? false;
+  const outputMuted = ownClient?.outputMuted ?? false;
   const displayTalkers =
     selfActive && ownClient ? new Set(talkers).add(ownClient.id) : talkers;
 
@@ -855,7 +1302,43 @@ function App() {
             </div>
           )}
         </div>
-        {["Favoriten", "Selbst", "Rechte", "Extras", "Hilfe"].map((item) => (
+        <div className="ts-menubar-dropdown" ref={favoritesMenuRef}>
+          <span
+            className="ts-menubar-item ts-menubar-item-active"
+            onClick={() => setFavoritesMenuOpen((v) => !v)}
+          >
+            Favoriten
+          </span>
+          {favoritesMenuOpen && (
+            <div className="ts-menu">
+              <button className="ts-menu-item" onClick={openAddFavorite}>
+                <span className="ts-menu-item-icon">⭐</span>
+                <span className="ts-menu-item-label">Zu Favoriten hinzufügen</span>
+                <span className="ts-menu-item-shortcut">Strg+B</span>
+              </button>
+              <button className="ts-menu-item" onClick={openManageFavorites}>
+                <span className="ts-menu-item-icon">🗂️</span>
+                <span className="ts-menu-item-label">Favoriten verwalten</span>
+              </button>
+              {favorites.length > 0 && <div className="ts-menu-separator" />}
+              {favorites.map((f) => (
+                <button
+                  key={f.id}
+                  className="ts-menu-item"
+                  disabled={connected || connecting}
+                  onClick={() => {
+                    connectToFavorite(f);
+                    setFavoritesMenuOpen(false);
+                  }}
+                >
+                  <span className="ts-menu-item-icon">🔖</span>
+                  <span className="ts-menu-item-label">{f.bookmarkName}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {["Selbst", "Rechte", "Extras", "Hilfe"].map((item) => (
           <span key={item} className="ts-menubar-item">
             {item}
           </span>
@@ -864,28 +1347,76 @@ function App() {
 
       <div className="ts-toolbar">
         <div className="ts-toolbar-icons">
-          {!connected ? (
+          <div className="ts-toolbar-away" ref={awayMenuRef}>
             <button
-              className="ts-icon-button"
-              onClick={() => setConnectDialogOpen(true)}
-              disabled={connecting}
-              title={connecting ? "Connecting…" : "Connect"}
+              className={`ts-icon-button${isAway ? " ts-away-on" : ""}`}
+              onClick={() => sendAway(!isAway, "")}
+              disabled={!connected}
+              title={isAway ? "Back online" : "Set away"}
             >
-              🟢
+              💤
             </button>
-          ) : (
-            <button className="ts-icon-button" onClick={handleDisconnect} title="Disconnect">
-              🔴
+            <button
+              className="ts-icon-caret"
+              onClick={() => setAwayMenuOpen((v) => !v)}
+              disabled={!connected}
+              title="Away options"
+            >
+              ▾
             </button>
-          )}
+            {awayMenuOpen && (
+              <div className="ts-menu ts-menu-away">
+                <button
+                  className="ts-menu-item"
+                  onClick={() => {
+                    sendAway(true, "");
+                    setAwayMenuOpen(false);
+                  }}
+                >
+                  <span className="ts-menu-item-icon">💤</span>
+                  <span className="ts-menu-item-label">Global abwesend setzen</span>
+                </button>
+                <button
+                  className="ts-menu-item"
+                  onClick={() => {
+                    setAwayDialogMessage("");
+                    setAwayDialogOpen(true);
+                    setAwayMenuOpen(false);
+                  }}
+                >
+                  <span className="ts-menu-item-icon">✎</span>
+                  <span className="ts-menu-item-label">Abwesenheit-Status global setzen</span>
+                </button>
+                {awayPresets.length > 0 && <div className="ts-menu-separator" />}
+                {awayPresets.map((preset) => (
+                  <button
+                    key={preset}
+                    className="ts-menu-item"
+                    onClick={() => {
+                      sendAway(true, preset);
+                      setAwayMenuOpen(false);
+                    }}
+                  >
+                    <span className="ts-menu-item-label">{preset}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <span className="ts-toolbar-sep" />
           <button
-            className={`ts-icon-button${micOn ? " ts-mic-on" : ""}`}
+            className={`ts-icon-button${micOn && !inputMuted ? " ts-mic-on" : ""}${micOn && inputMuted ? " ts-muted-on" : ""}`}
             onClick={handleToggleMic}
             disabled={!connected}
-            title={micOn ? "Voice activation on - click to mute" : "Enable microphone (voice activation)"}
+            title={
+              !micOn
+                ? "Enable microphone"
+                : inputMuted
+                  ? "Unmute microphone"
+                  : "Mute microphone"
+            }
           >
-            {micOn ? "🎤" : "🔇"}
+            {micOn && !inputMuted ? "🎤" : "🔇"}
           </button>
           <label className="ts-icon-slider" title="Voice activation sensitivity">
             🎚️
@@ -898,13 +1429,22 @@ function App() {
               onChange={(e) => setVadThreshold(Number(e.target.value))}
             />
           </label>
+          <span className="ts-toolbar-sep" />
+          <button
+            className={`ts-icon-button${outputMuted ? " ts-muted-on" : ""}`}
+            onClick={handleToggleOutputMuted}
+            disabled={!connected}
+            title={outputMuted ? "Unmute sound (undeafen)" : "Mute sound (deafen)"}
+          >
+            {outputMuted ? "🔇" : "🔊"}
+          </button>
           {hasNativeOutputPicker() ? (
             <button className="ts-icon-button" onClick={handlePickOutputDevice} title="Choose output device">
-              🔊
+              🎧
             </button>
           ) : (
             <label className="ts-icon-select">
-              🔊
+              🎧
               <select
                 value={outputDeviceId}
                 onChange={(e) => handleOutputDeviceChange(e.target.value)}
@@ -949,6 +1489,26 @@ function App() {
           onToggleExpanded={() => setConnectDialogExpanded((v) => !v)}
           onConnect={handleConnect}
           onCancel={() => setConnectDialogOpen(false)}
+        />
+      )}
+
+      {favoritesDialogMode && (
+        <FavoritesDialog
+          favorites={favorites}
+          prefillNew={favoritesDialogMode.kind === "add" ? favoritesDialogMode.prefill : undefined}
+          onSave={saveFavorites}
+          onClose={() => setFavoritesDialogMode(null)}
+        />
+      )}
+
+      {awayDialogOpen && (
+        <AwayDialog
+          message={awayDialogMessage}
+          presets={awayPresets}
+          onMessageChange={setAwayDialogMessage}
+          onOk={handleConfirmAway}
+          onSaveTemplate={handleSaveAwayTemplate}
+          onCancel={() => setAwayDialogOpen(false)}
         />
       )}
 

@@ -754,7 +754,6 @@ function AwayDialog({
 
 const OPTIONS_SECTIONS = [
   { id: "anwendung", icon: "🎧", label: "Anwendung" },
-  { id: "myteamspeak", icon: "👤", label: "myTeamSpeak" },
   { id: "wiedergabe", icon: "🔊", label: "Wiedergabe" },
   { id: "aufnahme", icon: "🎙️", label: "Aufnahme" },
   { id: "design", icon: "🖌️", label: "Design" },

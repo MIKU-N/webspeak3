@@ -5,6 +5,7 @@ import {
   MicCapture,
   SAMPLE_RATE,
   hasNativeOutputPicker,
+  listAudioInputDevices,
   listAudioOutputDevices,
   pickAudioOutputDevice,
 } from "./voice";
@@ -19,6 +20,22 @@ const GATEWAY_URL = import.meta.env.DEV
 const LAST_HOST_KEY = "ts-web-client:last-host";
 const LAST_NICKNAME_KEY = "ts-web-client:last-nickname";
 const FAVORITES_KEY = "ts-web-client:favorites";
+const INPUT_DEVICE_KEY = "ts-web-client:input-device";
+const PLAYBACK_VOLUME_KEY = "ts-web-client:playback-volume";
+const NOISE_SUPPRESSION_KEY = "ts-web-client:noise-suppression";
+const ECHO_CANCELLATION_KEY = "ts-web-client:echo-cancellation";
+const VAD_HANGOVER_KEY = "ts-web-client:vad-hangover";
+
+function loadBoolPref(key: string, fallback: boolean): boolean {
+  const raw = localStorage.getItem(key);
+  return raw === null ? fallback : raw === "1";
+}
+
+function loadNumberPref(key: string, fallback: number): number {
+  const raw = localStorage.getItem(key);
+  const parsed = raw === null ? NaN : Number(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
 
 interface Favorite {
   id: string;
@@ -751,14 +768,260 @@ const OPTIONS_SECTIONS = [
   { id: "meldungen", icon: "ℹ️", label: "Meldungen" },
 ] as const;
 
+interface AudioSettings {
+  outputDevices: MediaDeviceInfo[];
+  outputDeviceId: string;
+  onOutputDeviceChange: (id: string, label?: string) => void;
+  onRefreshOutputDevices: () => void;
+  playbackVolume: number;
+  onPlaybackVolumeChange: (v: number) => void;
+  onPlayTestTone: () => void;
+  inputDevices: MediaDeviceInfo[];
+  inputDeviceId: string;
+  onInputDeviceChange: (id: string) => void;
+  onRefreshInputDevices: () => void;
+  micOn: boolean;
+  micLevelRef: React.MutableRefObject<number>;
+  micTestOn: boolean;
+  onToggleMicTest: () => void;
+  vadThreshold: number;
+  onVadThresholdChange: (v: number) => void;
+  vadHangover: number;
+  onVadHangoverChange: (v: number) => void;
+  noiseSuppressionEnabled: boolean;
+  onToggleNoiseSuppression: () => void;
+  echoCancellationEnabled: boolean;
+  onToggleEchoCancellation: () => void;
+}
+
+function MicLevelBar({ levelRef, active }: { levelRef: React.MutableRefObject<number>; active: boolean }) {
+  const [level, setLevel] = useState(0);
+  useEffect(() => {
+    if (!active) {
+      setLevel(0);
+      return;
+    }
+    let raf = 0;
+    const tick = () => {
+      setLevel(levelRef.current);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [active, levelRef]);
+  const pct = Math.min(100, Math.round((level / 0.2) * 100));
+  return (
+    <div className="ts-options-level-track">
+      <div className="ts-options-level-fill" style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+function WiedergabePanel({ audio }: { audio: AudioSettings }) {
+  const volumeDb = Math.round(20 * Math.log10(audio.playbackVolume || 0.001) * 10) / 10;
+  return (
+    <>
+      <h3>Wiedergabe</h3>
+      <p className="ts-options-subtitle">Ändern der Wiedergabeeinstellungen</p>
+      <div className="ts-options-field-row">
+        <label>Profile</label>
+      </div>
+      <div className="ts-options-columns">
+        <ul className="ts-options-profile-list">
+          <li className="ts-options-profile-item-active">Standard</li>
+        </ul>
+        <div className="ts-options-fields">
+          <label className="ts-options-field">
+            Wiedergabemodus:
+            <select disabled value="wasapi">
+              <option value="wasapi">Windows Audio Session</option>
+            </select>
+          </label>
+          <label className="ts-options-field">
+            Wiedergabegerät:
+            <select
+              value={audio.outputDeviceId}
+              onFocus={audio.onRefreshOutputDevices}
+              onChange={(e) => audio.onOutputDeviceChange(e.target.value)}
+            >
+              <option value="">System default</option>
+              {audio.outputDevices.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Output ${d.deviceId.slice(0, 6)}`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="ts-options-slider-row">
+            <span>Leise</span>
+            <span className="ts-options-slider-label">Sprachlautstärke</span>
+            <span>Laut</span>
+          </div>
+          <div className="ts-options-slider-with-value">
+            <input
+              type="range"
+              min={0}
+              max={2}
+              step={0.02}
+              value={audio.playbackVolume}
+              onChange={(e) => audio.onPlaybackVolumeChange(Number(e.target.value))}
+            />
+            <span className="ts-options-db-value">
+              {volumeDb > 0 ? "+" : ""}
+              {volumeDb} dB
+            </span>
+          </div>
+          <button onClick={audio.onPlayTestTone}>▶ Test Ton abspielen</button>
+          <fieldset className="ts-options-fieldset">
+            <legend>Optionen</legend>
+            <label className="ts-options-checkbox">
+              <input type="checkbox" checked disabled readOnly />
+              Automatische Lautstärkeanpassung
+            </label>
+            <label className="ts-options-checkbox">
+              <input type="checkbox" checked disabled readOnly />
+              Eigener Client spielt Mikro Klicks
+            </label>
+            <label className="ts-options-checkbox">
+              <input type="checkbox" disabled readOnly />
+              Client 3D Positionen immer setzen wenn verfügbar
+            </label>
+            <label className="ts-options-checkbox">
+              <input type="checkbox" disabled readOnly />
+              Andere Clients spielen Mikro Klicks
+            </label>
+            <label className="ts-options-checkbox">
+              <input type="checkbox" disabled readOnly />
+              Comfort noise
+            </label>
+          </fieldset>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function AufnahmePanel({ audio }: { audio: AudioSettings }) {
+  return (
+    <>
+      <h3>Aufnahme</h3>
+      <p className="ts-options-subtitle">Ändern der Aufnahmeeinstellungen</p>
+      <div className="ts-options-columns">
+        <ul className="ts-options-profile-list">
+          <li className="ts-options-profile-item-active">Standard</li>
+        </ul>
+        <div className="ts-options-fields">
+          <label className="ts-options-field">
+            Aufnahmemodus:
+            <select disabled value="wasapi">
+              <option value="wasapi">Windows Audio Session</option>
+            </select>
+          </label>
+          <label className="ts-options-field">
+            Aufnahmegerät:
+            <select
+              value={audio.inputDeviceId}
+              onFocus={audio.onRefreshInputDevices}
+              onChange={(e) => audio.onInputDeviceChange(e.target.value)}
+            >
+              <option value="">System default</option>
+              {audio.inputDevices.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Input ${d.deviceId.slice(0, 6)}`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <fieldset className="ts-options-fieldset">
+            <legend>Activation</legend>
+            <label className="ts-options-radio">
+              <input type="radio" name="activation" disabled readOnly />
+              Push-To-Talk
+            </label>
+            <label className="ts-options-radio">
+              <input type="radio" name="activation" disabled readOnly />
+              Dauersenden
+            </label>
+            <label className="ts-options-radio">
+              <input type="radio" name="activation" checked readOnly />
+              Automatische Spracherkennung
+            </label>
+            <div className="ts-options-level-wrap">
+              <MicLevelBar levelRef={audio.micLevelRef} active={audio.micOn} />
+              <input
+                className="ts-options-level-threshold"
+                type="range"
+                min={0.002}
+                max={0.15}
+                step={0.002}
+                value={audio.vadThreshold}
+                onChange={(e) => audio.onVadThresholdChange(Number(e.target.value))}
+              />
+            </div>
+            <div className="ts-options-field-row">
+              <button onClick={audio.onToggleMicTest} disabled={!audio.micOn}>
+                {audio.micTestOn ? "Test beenden" : "Test starten"}
+              </button>
+              <span className={`ts-options-test-dot${audio.micTestOn ? " ts-options-test-dot-on" : ""}`} />
+              <label className="ts-options-field-inline">
+                Abschaltverzögerung:
+                <input
+                  type="number"
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  value={audio.vadHangover}
+                  onChange={(e) => audio.onVadHangoverChange(Number(e.target.value))}
+                />
+                Sek
+              </label>
+            </div>
+          </fieldset>
+          <fieldset className="ts-options-fieldset">
+            <legend>Digital Signal Processing</legend>
+            <div className="ts-options-dsp-grid">
+              <label className="ts-options-checkbox">
+                <input type="checkbox" disabled readOnly />
+                Typing attenuation
+              </label>
+              <label className="ts-options-checkbox">
+                <input
+                  type="checkbox"
+                  checked={audio.echoCancellationEnabled}
+                  onChange={audio.onToggleEchoCancellation}
+                />
+                Echo Dämpfung
+              </label>
+              <label className="ts-options-checkbox">
+                <input
+                  type="checkbox"
+                  checked={audio.noiseSuppressionEnabled}
+                  onChange={audio.onToggleNoiseSuppression}
+                />
+                Hintergrundgeräusche entfernen
+              </label>
+              <label className="ts-options-checkbox">
+                <input type="checkbox" disabled readOnly />
+                Echo Abschwächung (Ducking)
+              </label>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function OptionsDialog({
   section,
   onSectionChange,
   onClose,
+  audio,
 }: {
   section: string;
   onSectionChange: (id: string) => void;
   onClose: () => void;
+  audio: AudioSettings;
 }) {
   const active = OPTIONS_SECTIONS.find((s) => s.id === section) ?? OPTIONS_SECTIONS[0];
   return (
@@ -784,8 +1047,16 @@ function OptionsDialog({
             ))}
           </div>
           <div className="ts-options-content">
-            <h3>{active.label}</h3>
-            <p className="ts-options-placeholder">Diese Einstellungen sind noch nicht implementiert.</p>
+            {active.id === "wiedergabe" ? (
+              <WiedergabePanel audio={audio} />
+            ) : active.id === "aufnahme" ? (
+              <AufnahmePanel audio={audio} />
+            ) : (
+              <>
+                <h3>{active.label}</h3>
+                <p className="ts-options-placeholder">Diese Einstellungen sind noch nicht implementiert.</p>
+              </>
+            )}
           </div>
         </div>
         <div className="ts-dialog-buttons">
@@ -836,9 +1107,20 @@ function App() {
   const [talkers, setTalkers] = useState<Set<number>>(new Set());
   const [selfActive, setSelfActive] = useState(false);
   const [vadThreshold, setVadThreshold] = useState(0.02);
+  const [vadHangover, setVadHangover] = useState(() => loadNumberPref(VAD_HANGOVER_KEY, 0.3));
   const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
   const [outputDeviceId, setOutputDeviceId] = useState("");
   const [outputDeviceLabel, setOutputDeviceLabel] = useState("System default");
+  const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
+  const [inputDeviceId, setInputDeviceId] = useState(() => localStorage.getItem(INPUT_DEVICE_KEY) ?? "");
+  const [playbackVolume, setPlaybackVolume] = useState(() => loadNumberPref(PLAYBACK_VOLUME_KEY, 1));
+  const [noiseSuppressionEnabled, setNoiseSuppressionEnabled] = useState(() =>
+    loadBoolPref(NOISE_SUPPRESSION_KEY, true)
+  );
+  const [echoCancellationEnabled, setEchoCancellationEnabled] = useState(() =>
+    loadBoolPref(ECHO_CANCELLATION_KEY, true)
+  );
+  const [micTestOn, setMicTestOn] = useState(false);
   const [connectionsMenuOpen, setConnectionsMenuOpen] = useState(false);
   const [favorites, setFavorites] = useState<Favorite[]>(() => loadFavorites());
   const [favoritesMenuOpen, setFavoritesMenuOpen] = useState(false);
@@ -866,6 +1148,7 @@ function App() {
   const pokeIdRef = useRef(0);
   const inputMutedRef = useRef(false);
   const outputMutedRef = useRef(false);
+  const micLevelRef = useRef(0);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: "nearest" });
@@ -880,6 +1163,28 @@ function App() {
   useEffect(() => {
     if (micCaptureRef.current) micCaptureRef.current.threshold = vadThreshold;
   }, [vadThreshold]);
+
+  useEffect(() => {
+    if (micCaptureRef.current) micCaptureRef.current.hangoverSeconds = vadHangover;
+    localStorage.setItem(VAD_HANGOVER_KEY, String(vadHangover));
+  }, [vadHangover]);
+
+  useEffect(() => {
+    audioPlayerRef.current?.setVolume(playbackVolume);
+    localStorage.setItem(PLAYBACK_VOLUME_KEY, String(playbackVolume));
+  }, [playbackVolume]);
+
+  useEffect(() => {
+    localStorage.setItem(NOISE_SUPPRESSION_KEY, noiseSuppressionEnabled ? "1" : "0");
+  }, [noiseSuppressionEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem(ECHO_CANCELLATION_KEY, echoCancellationEnabled ? "1" : "0");
+  }, [echoCancellationEnabled]);
+
+  useEffect(() => {
+    if (inputDeviceId) localStorage.setItem(INPUT_DEVICE_KEY, inputDeviceId);
+  }, [inputDeviceId]);
 
   useEffect(() => {
     activeTabRef.current = activeTab;
@@ -901,9 +1206,22 @@ function App() {
     }
   };
 
+  const refreshInputDevices = async () => {
+    try {
+      const devices = await listAudioInputDevices();
+      setInputDevices(devices);
+    } catch {
+      // Device labels/enumeration may be unavailable before mic permission is granted.
+    }
+  };
+
   useEffect(() => {
-    navigator.mediaDevices?.addEventListener?.("devicechange", refreshOutputDevices);
-    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", refreshOutputDevices);
+    const refreshBoth = () => {
+      void refreshOutputDevices();
+      void refreshInputDevices();
+    };
+    navigator.mediaDevices?.addEventListener?.("devicechange", refreshBoth);
+    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", refreshBoth);
   }, []);
 
   useEffect(() => {
@@ -1250,25 +1568,52 @@ function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [connected, connecting, host, nickname, serverPassword, defaultChannel, channelPassword]);
 
+  // Overrides let a device/DSP-setting change take effect immediately, without
+  // waiting for the next render's (possibly still-stale) state closure.
+  const startMic = async (overrides?: {
+    deviceId?: string;
+    echoCancellation?: boolean;
+    noiseSuppression?: boolean;
+  }) => {
+    const audioContext = ensureAudioContext();
+    try {
+      const mic = new MicCapture(audioContext, {
+        onFrame: (pcm) => {
+          if (!inputMutedRef.current) socketRef.current?.send(JSON.stringify({ type: "sendAudio", pcm }));
+        },
+        onActivity: (active) => setSelfActive(active),
+        onLevel: (rms) => {
+          micLevelRef.current = rms;
+        },
+        threshold: vadThreshold,
+        hangoverSeconds: vadHangover,
+        deviceId: overrides?.deviceId ?? (inputDeviceId || undefined),
+        echoCancellation: overrides?.echoCancellation ?? echoCancellationEnabled,
+        noiseSuppression: overrides?.noiseSuppression ?? noiseSuppressionEnabled,
+      });
+      await mic.start();
+      micCaptureRef.current = mic;
+      setMicOn(true);
+      refreshOutputDevices();
+      refreshInputDevices();
+    } catch (error) {
+      appendLog({ text: `Microphone error: ${(error as Error).message}`, kind: "error" });
+    }
+  };
+
+  const restartMic = async (overrides?: {
+    deviceId?: string;
+    echoCancellation?: boolean;
+    noiseSuppression?: boolean;
+  }) => {
+    micCaptureRef.current?.stop();
+    micCaptureRef.current = null;
+    await startMic(overrides);
+  };
+
   const handleToggleMic = async () => {
     if (!micOn) {
-      const audioContext = ensureAudioContext();
-      try {
-        const mic = new MicCapture(
-          audioContext,
-          (pcm) => {
-            if (!inputMutedRef.current) socketRef.current?.send(JSON.stringify({ type: "sendAudio", pcm }));
-          },
-          (active) => setSelfActive(active),
-          vadThreshold
-        );
-        await mic.start();
-        micCaptureRef.current = mic;
-        setMicOn(true);
-        refreshOutputDevices();
-      } catch (error) {
-        appendLog({ text: `Microphone error: ${(error as Error).message}`, kind: "error" });
-      }
+      await startMic();
       return;
     }
     socketRef.current?.send(JSON.stringify({ type: "setInputMuted", muted: !inputMutedRef.current }));
@@ -1283,6 +1628,30 @@ function App() {
     void handleToggleMic();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleInputDeviceChange = (deviceId: string) => {
+    setInputDeviceId(deviceId);
+    if (micCaptureRef.current) void restartMic({ deviceId });
+  };
+
+  const handleToggleNoiseSuppression = () => {
+    const next = !noiseSuppressionEnabled;
+    setNoiseSuppressionEnabled(next);
+    if (micCaptureRef.current) void restartMic({ noiseSuppression: next });
+  };
+
+  const handleToggleEchoCancellation = () => {
+    const next = !echoCancellationEnabled;
+    setEchoCancellationEnabled(next);
+    if (micCaptureRef.current) void restartMic({ echoCancellation: next });
+  };
+
+  const handleToggleMicTest = () => {
+    const next = !micTestOn;
+    setMicTestOn(next);
+    const inputNode = audioPlayerRef.current?.getInputNode();
+    if (inputNode) micCaptureRef.current?.setMonitoring(next, inputNode);
+  };
 
   const handleToggleOutputMuted = () => {
     socketRef.current?.send(JSON.stringify({ type: "setOutputMuted", muted: !outputMutedRef.current }));
@@ -1301,6 +1670,11 @@ function App() {
     } catch (error) {
       appendLog({ text: `Output device error: ${(error as Error).message}`, kind: "error" });
     }
+  };
+
+  const handlePlayTestTone = () => {
+    ensureAudioContext();
+    audioPlayerRef.current?.playTestTone();
   };
 
   const handleSwitchChannel = (channelId: number) => {
@@ -1705,6 +2079,31 @@ function App() {
           section={optionsSection}
           onSectionChange={setOptionsSection}
           onClose={() => setOptionsDialogOpen(false)}
+          audio={{
+            outputDevices,
+            outputDeviceId,
+            onOutputDeviceChange: handleOutputDeviceChange,
+            onRefreshOutputDevices: refreshOutputDevices,
+            playbackVolume,
+            onPlaybackVolumeChange: setPlaybackVolume,
+            onPlayTestTone: handlePlayTestTone,
+            inputDevices,
+            inputDeviceId,
+            onInputDeviceChange: handleInputDeviceChange,
+            onRefreshInputDevices: refreshInputDevices,
+            micOn,
+            micLevelRef,
+            micTestOn,
+            onToggleMicTest: handleToggleMicTest,
+            vadThreshold,
+            onVadThresholdChange: setVadThreshold,
+            vadHangover,
+            onVadHangoverChange: setVadHangover,
+            noiseSuppressionEnabled,
+            onToggleNoiseSuppression: handleToggleNoiseSuppression,
+            echoCancellationEnabled,
+            onToggleEchoCancellation: handleToggleEchoCancellation,
+          }}
         />
       )}
 

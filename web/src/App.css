@@ -847,6 +847,174 @@
   color: var(--text-muted);
 }
 
+.ts-options-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 0 0.75rem;
+}
+
+.ts-options-columns {
+  display: flex;
+  gap: 1rem;
+}
+
+.ts-options-profile-list {
+  width: 110px;
+  flex-shrink: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ts-options-profile-item-active {
+  padding: 0.3rem 0.4rem;
+  border-radius: 2px;
+  font-size: 12px;
+  background: var(--row-hover);
+  outline: 1px solid var(--border);
+}
+
+.ts-options-fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.ts-options-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ts-options-field select,
+.ts-options-field-inline input {
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0.3rem;
+  font-size: 12px;
+}
+
+.ts-options-field select:disabled {
+  opacity: 0.6;
+}
+
+.ts-options-slider-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ts-options-slider-label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ts-options-slider-with-value {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ts-options-slider-with-value input[type="range"] {
+  flex: 1;
+}
+
+.ts-options-db-value {
+  font-size: 11px;
+  color: var(--text-muted);
+  width: 4.5em;
+  text-align: right;
+}
+
+.ts-options-fieldset {
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem 0.75rem;
+  margin: 0;
+}
+
+.ts-options-fieldset legend {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 0.3rem;
+}
+
+.ts-options-checkbox,
+.ts-options-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 12px;
+  padding: 0.15rem 0;
+}
+
+.ts-options-dsp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.2rem 1rem;
+}
+
+.ts-options-level-wrap {
+  position: relative;
+  margin: 0.5rem 0;
+}
+
+.ts-options-level-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+}
+
+.ts-options-level-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.05s linear;
+}
+
+.ts-options-level-threshold {
+  width: 100%;
+  margin-top: 0.3rem;
+}
+
+.ts-options-field-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ts-options-field-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ts-options-field-inline input[type="number"] {
+  width: 4em;
+}
+
+.ts-options-test-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+  display: inline-block;
+}
+
+.ts-options-test-dot-on {
+  background: #4caf50;
+}
+
 .ts-dialog-titlebar {
   display: flex;
   align-items: center;

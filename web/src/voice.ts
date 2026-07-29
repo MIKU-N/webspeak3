@@ -24,8 +24,19 @@ function base64ToInt16(b64: string): Int16Array {
   return new Int16Array(bytes.buffer);
 }
 
-/** How long transmission continues after the level drops back below the threshold, so words aren't clipped. */
-const VAD_HANGOVER_SECONDS = 0.4;
+export interface MicCaptureOptions {
+  onFrame: (base64Pcm: string) => void;
+  onActivity?: (active: boolean) => void;
+  /** Reports the raw input RMS (roughly 0-1) on every processing tick, for live level meters. */
+  onLevel?: (rms: number) => void;
+  threshold?: number;
+  /** How long transmission continues after the level drops back below the threshold, so words aren't clipped. */
+  hangoverSeconds?: number;
+  /** `MediaDeviceInfo.deviceId` of the input device to use - omit for the system default. */
+  deviceId?: string;
+  echoCancellation?: boolean;
+  noiseSuppression?: boolean;
+}
 
 /**
  * Captures the microphone and emits base64-encoded mono 16-bit PCM frames.
@@ -40,18 +51,31 @@ export class MicCapture {
   private source: MediaStreamAudioSourceNode | null = null;
   private processor: ScriptProcessorNode | null = null;
   private silence: GainNode | null = null;
+  private monitorTarget: AudioNode | null = null;
   private pending: number[] = [];
   private active = false;
   private activeUntil = 0;
+  private onFrame: (base64Pcm: string) => void;
+  private onActivity?: (active: boolean) => void;
+  private onLevel?: (rms: number) => void;
+  private deviceId?: string;
+  private echoCancellation: boolean;
+  private noiseSuppression: boolean;
   threshold: number;
+  hangoverSeconds: number;
 
   constructor(
     private context: AudioContext,
-    private onFrame: (base64Pcm: string) => void,
-    private onActivity?: (active: boolean) => void,
-    threshold = 0.02
+    options: MicCaptureOptions
   ) {
-    this.threshold = threshold;
+    this.onFrame = options.onFrame;
+    this.onActivity = options.onActivity;
+    this.onLevel = options.onLevel;
+    this.threshold = options.threshold ?? 0.02;
+    this.hangoverSeconds = options.hangoverSeconds ?? 0.3;
+    this.deviceId = options.deviceId;
+    this.echoCancellation = options.echoCancellation ?? true;
+    this.noiseSuppression = options.noiseSuppression ?? true;
   }
 
   async start(): Promise<void> {
@@ -59,7 +83,12 @@ export class MicCapture {
       throw new Error("Microphone access requires HTTPS (or localhost) - the site is not a secure context.");
     }
     this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      audio: {
+        channelCount: 1,
+        echoCancellation: this.echoCancellation,
+        noiseSuppression: this.noiseSuppression,
+        ...(this.deviceId ? { deviceId: { exact: this.deviceId } } : {}),
+      },
     });
     // Granting the permission prompt counts as a user gesture, so this can
     // succeed even when start() was triggered automatically on page load,
@@ -73,9 +102,10 @@ export class MicCapture {
       let sumSquares = 0;
       for (let i = 0; i < input.length; i++) sumSquares += input[i] * input[i];
       const rms = Math.sqrt(sumSquares / input.length);
+      this.onLevel?.(rms);
 
       const now = this.context.currentTime;
-      if (rms >= this.threshold) this.activeUntil = now + VAD_HANGOVER_SECONDS;
+      if (rms >= this.threshold) this.activeUntil = now + this.hangoverSeconds;
       const shouldBeActive = now < this.activeUntil;
       if (shouldBeActive !== this.active) {
         this.active = shouldBeActive;
@@ -105,7 +135,22 @@ export class MicCapture {
     this.silence.connect(this.context.destination);
   }
 
+  /** Routes the raw mic signal to `destination` too, so you can hear yourself (a mic test), until disabled again. */
+  setMonitoring(enabled: boolean, destination: AudioNode): void {
+    if (!this.source) return;
+    if (enabled && this.monitorTarget !== destination) {
+      if (this.monitorTarget) this.source.disconnect(this.monitorTarget);
+      this.source.connect(destination);
+      this.monitorTarget = destination;
+    } else if (!enabled && this.monitorTarget) {
+      this.source.disconnect(this.monitorTarget);
+      this.monitorTarget = null;
+    }
+  }
+
   stop(): void {
+    if (this.source && this.monitorTarget) this.source.disconnect(this.monitorTarget);
+    this.monitorTarget = null;
     this.processor?.disconnect();
     this.silence?.disconnect();
     this.source?.disconnect();
@@ -127,6 +172,13 @@ export async function listAudioOutputDevices(): Promise<MediaDeviceInfo[]> {
   if (!navigator.mediaDevices) return [];
   const devices = await navigator.mediaDevices.enumerateDevices();
   return devices.filter((d) => d.kind === "audiooutput");
+}
+
+/** Input ("audioinput") devices available for the mic, e.g. for a device picker. */
+export async function listAudioInputDevices(): Promise<MediaDeviceInfo[]> {
+  if (!navigator.mediaDevices) return [];
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  return devices.filter((d) => d.kind === "audioinput");
 }
 
 type MediaDevicesWithPicker = MediaDevices & { selectAudioOutput?: () => Promise<MediaDeviceInfo> };
@@ -169,9 +221,12 @@ export class AudioPlayer {
   private nextTime = 0;
   private destination: MediaStreamAudioDestinationNode;
   private element: SinkableElement;
+  private gain: GainNode;
 
   constructor(private context: AudioContext) {
     this.destination = context.createMediaStreamDestination();
+    this.gain = context.createGain();
+    this.gain.connect(this.destination);
     this.element = document.createElement("audio") as SinkableElement;
     this.element.autoplay = true;
     this.element.srcObject = this.destination.stream;
@@ -194,7 +249,7 @@ export class AudioPlayer {
 
     const source = this.context.createBufferSource();
     source.buffer = buffer;
-    source.connect(this.destination);
+    source.connect(this.gain);
 
     const now = this.context.currentTime;
     if (this.nextTime < now + 0.02) {
@@ -208,6 +263,34 @@ export class AudioPlayer {
 
   reset(): void {
     this.nextTime = 0;
+  }
+
+  /** Playback volume as linear gain (1 = unity/0dB). */
+  setVolume(gain: number): void {
+    this.gain.gain.value = gain;
+  }
+
+  /** The node all voice/test audio ultimately reaches - use as a mic-monitoring target so it also respects volume/output device. */
+  getInputNode(): AudioNode {
+    return this.gain;
+  }
+
+  /** Plays a short sine-wave test tone through the same volume/output-device routing as voice playback. */
+  playTestTone(): void {
+    const osc = this.context.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = 440;
+    const toneGain = this.context.createGain();
+    toneGain.gain.value = 0.3;
+    osc.connect(toneGain);
+    toneGain.connect(this.gain);
+    const now = this.context.currentTime;
+    osc.start(now);
+    osc.stop(now + 0.6);
+    osc.onended = () => {
+      osc.disconnect();
+      toneGain.disconnect();
+    };
   }
 
   /** Routes playback to a specific device (empty string = system default). */

@@ -832,12 +832,6 @@ function WiedergabePanel({ audio }: { audio: AudioSettings }) {
         </ul>
         <div className="ts-options-fields">
           <label className="ts-options-field">
-            Wiedergabemodus:
-            <select disabled value="wasapi">
-              <option value="wasapi">Windows Audio Session</option>
-            </select>
-          </label>
-          <label className="ts-options-field">
             Wiedergabegerät:
             <select
               value={audio.outputDeviceId}
@@ -884,15 +878,7 @@ function WiedergabePanel({ audio }: { audio: AudioSettings }) {
             </label>
             <label className="ts-options-checkbox">
               <input type="checkbox" disabled readOnly />
-              Client 3D Positionen immer setzen wenn verfügbar
-            </label>
-            <label className="ts-options-checkbox">
-              <input type="checkbox" disabled readOnly />
               Andere Clients spielen Mikro Klicks
-            </label>
-            <label className="ts-options-checkbox">
-              <input type="checkbox" disabled readOnly />
-              Comfort noise
             </label>
           </fieldset>
         </div>
@@ -911,12 +897,6 @@ function AufnahmePanel({ audio }: { audio: AudioSettings }) {
           <li className="ts-options-profile-item-active">Standard</li>
         </ul>
         <div className="ts-options-fields">
-          <label className="ts-options-field">
-            Aufnahmemodus:
-            <select disabled value="wasapi">
-              <option value="wasapi">Windows Audio Session</option>
-            </select>
-          </label>
           <label className="ts-options-field">
             Aufnahmegerät:
             <select
@@ -999,10 +979,6 @@ function AufnahmePanel({ audio }: { audio: AudioSettings }) {
                   onChange={audio.onToggleNoiseSuppression}
                 />
                 Hintergrundgeräusche entfernen
-              </label>
-              <label className="ts-options-checkbox">
-                <input type="checkbox" disabled readOnly />
-                Echo Abschwächung (Ducking)
               </label>
             </div>
           </fieldset>

@@ -784,12 +784,12 @@
 }
 
 .ts-options-dialog {
-  width: 640px;
+  width: 720px;
 }
 
 .ts-options-body {
   display: flex;
-  height: min(420px, 70vh);
+  height: min(560px, 85vh);
 }
 
 .ts-options-sidebar {

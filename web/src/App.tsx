@@ -9,7 +9,12 @@ import {
   pickAudioOutputDevice,
 } from "./voice";
 
-const GATEWAY_URL = "ws://localhost:8080";
+// In dev, the gateway runs standalone on its own port. In production it's
+// served from the same origin/port as the web app (single container behind a
+// reverse proxy), so derive the WebSocket URL from the current location.
+const GATEWAY_URL = import.meta.env.DEV
+  ? "ws://localhost:8080"
+  : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
 
 const LAST_HOST_KEY = "ts-web-client:last-host";
 const LAST_NICKNAME_KEY = "ts-web-client:last-nickname";

@@ -55,6 +55,9 @@ export class MicCapture {
   }
 
   async start(): Promise<void> {
+    if (!navigator.mediaDevices) {
+      throw new Error("Microphone access requires HTTPS (or localhost) - the site is not a secure context.");
+    }
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
     });
@@ -117,6 +120,7 @@ export class MicCapture {
 
 /** Output ("audiooutput") devices available for playback, e.g. for a device picker. */
 export async function listAudioOutputDevices(): Promise<MediaDeviceInfo[]> {
+  if (!navigator.mediaDevices) return [];
   const devices = await navigator.mediaDevices.enumerateDevices();
   return devices.filter((d) => d.kind === "audiooutput");
 }
@@ -125,6 +129,7 @@ type MediaDevicesWithPicker = MediaDevices & { selectAudioOutput?: () => Promise
 
 /** Whether the browser supports the native OS output-device picker (Chrome/Edge 105+). */
 export function hasNativeOutputPicker(): boolean {
+  if (!navigator.mediaDevices) return false;
   return typeof (navigator.mediaDevices as MediaDevicesWithPicker).selectAudioOutput === "function";
 }
 
@@ -135,6 +140,7 @@ export function hasNativeOutputPicker(): boolean {
  * the user to pick one, each call - no persistent listing to keep in sync.
  */
 export async function pickAudioOutputDevice(): Promise<MediaDeviceInfo | null> {
+  if (!navigator.mediaDevices) return null;
   const md = navigator.mediaDevices as MediaDevicesWithPicker;
   if (typeof md.selectAudioOutput !== "function") return null;
   return md.selectAudioOutput();

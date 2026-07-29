@@ -62,11 +62,13 @@ export interface Ts3ConnectOptions {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CONNECTOR_BIN = path.resolve(
-  __dirname,
-  "../../../connector/target/debug",
-  process.platform === "win32" ? "ts-connector.exe" : "ts-connector"
-);
+const CONNECTOR_BIN =
+  process.env.CONNECTOR_BIN ??
+  path.resolve(
+    __dirname,
+    "../../../connector/target/debug",
+    process.platform === "win32" ? "ts-connector.exe" : "ts-connector"
+  );
 
 export class Ts3Connection {
   private listeners = new Set<(event: Ts3ConnectionEvent) => void>();

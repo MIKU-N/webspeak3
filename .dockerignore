@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/target
+tsclientlib/.git
+.git
+*.log
+.env
+.env.local

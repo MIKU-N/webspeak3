@@ -32,12 +32,10 @@
     <th>Light Mode</th>
   </tr>
   <tr>
-    <td><img src="https://placehold.co/560x360/1e1e1e/6bd6d6?text=Dark+Mode+Screenshot" width="100%" alt="Dark mode screenshot placeholder"></td>
-    <td><img src="https://placehold.co/560x360/f4f4f4/1e1e1e?text=Light+Mode+Screenshot" width="100%" alt="Light mode screenshot placeholder"></td>
+    <td><img src="docs/screenshots/webspeak_dark.png" width="100%" alt="Dark mode screenshot"></td>
+    <td><img src="docs/screenshots/webspeak_light.png" width="100%" alt="Light mode screenshot"></td>
   </tr>
 </table>
-
-<sub>Replace the placeholders above with real screenshots/GIFs once available.</sub>
 
 ## ✨ Features
 

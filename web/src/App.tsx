@@ -14,10 +14,12 @@ import {
   SOUND_EVENTS,
   clearCustomSound,
   loadCustomSound,
+  loadEventSoundEnabled,
   loadSoundsEnabled,
   loadSoundsVolume,
   playSound,
   saveCustomSound,
+  saveEventSoundEnabled,
   saveSoundsEnabled,
   saveSoundsVolume,
   setSoundsOutputDevice,
@@ -1048,6 +1050,9 @@ function SoundsPanel() {
   const [enabled, setEnabled] = useState(() => loadSoundsEnabled());
   const [volume, setVolume] = useState(() => loadSoundsVolume());
   const [customNames, setCustomNames] = useState<Partial<Record<SoundEventId, string>>>({});
+  const [eventEnabled, setEventEnabled] = useState<Record<SoundEventId, boolean>>(() =>
+    Object.fromEntries(SOUND_EVENTS.map((id) => [id, loadEventSoundEnabled(id)])) as Record<SoundEventId, boolean>
+  );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetRef = useRef<SoundEventId | null>(null);
 
@@ -1076,6 +1081,12 @@ function SoundsPanel() {
   const handleVolumeChange = (v: number) => {
     setVolume(v);
     saveSoundsVolume(v);
+  };
+
+  const handleToggleEventEnabled = (event: SoundEventId) => {
+    const next = !eventEnabled[event];
+    setEventEnabled((prev) => ({ ...prev, [event]: next }));
+    saveEventSoundEnabled(event, next);
   };
 
   const handleUploadClick = (event: SoundEventId) => {
@@ -1125,6 +1136,14 @@ function SoundsPanel() {
         <tbody>
           {SOUND_EVENTS.map((eventId) => (
             <tr key={eventId}>
+              <td>
+                <input
+                  type="checkbox"
+                  checked={eventEnabled[eventId]}
+                  onChange={() => handleToggleEventEnabled(eventId)}
+                  title={t("sounds.eventEnable")}
+                />
+              </td>
               <td>{t(`sounds.event.${eventId}`)}</td>
               <td className="ts-options-sounds-source">
                 {customNames[eventId] ? t("sounds.custom", { name: customNames[eventId]! }) : t("sounds.default")}

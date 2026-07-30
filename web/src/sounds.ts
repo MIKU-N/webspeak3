@@ -4,6 +4,7 @@ export const SOUND_EVENTS: SoundEventId[] = ["connect", "disconnect", "clientJoi
 
 const ENABLED_KEY = "webspeak3:sounds-enabled";
 const VOLUME_KEY = "webspeak3:sounds-volume";
+const EVENT_ENABLED_KEY_PREFIX = "webspeak3:sounds-enabled:";
 const DB_NAME = "webspeak3-sounds";
 const STORE_NAME = "custom";
 
@@ -64,6 +65,15 @@ export function loadSoundsEnabled(): boolean {
 
 export function saveSoundsEnabled(enabled: boolean): void {
   localStorage.setItem(ENABLED_KEY, String(enabled));
+}
+
+export function loadEventSoundEnabled(event: SoundEventId): boolean {
+  const raw = localStorage.getItem(EVENT_ENABLED_KEY_PREFIX + event);
+  return raw === null ? true : raw === "true";
+}
+
+export function saveEventSoundEnabled(event: SoundEventId, enabled: boolean): void {
+  localStorage.setItem(EVENT_ENABLED_KEY_PREFIX + event, String(enabled));
 }
 
 export function loadSoundsVolume(): number {
@@ -196,6 +206,7 @@ export function setSoundsOutputDevice(deviceId: string): void {
 
 export async function playSound(event: SoundEventId): Promise<void> {
   if (!loadSoundsEnabled()) return;
+  if (!loadEventSoundEnabled(event)) return;
   const volume = loadSoundsVolume();
   const custom = await loadCustomSound(event).catch(() => undefined);
   if (custom) {

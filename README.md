@@ -1,33 +1,72 @@
 <p align="center">
-  <img src="web/public/logo.png" width="180" alt="WebSpeak3 logo">
+  <img src="web/public/logo.png" width="140" alt="WebSpeak3 logo">
 </p>
 
-# WebSpeak3
+<h1 align="center">WebSpeak3</h1>
 
-A browser-based web client for TeamSpeak 3 servers — same idea as the native
-installable client, but running in a web browser. The TeamSpeak server side
-stays exactly as-is (a regular TS server); only the client is being
-reimagined.
+<p align="center">
+  <a href="#legal--disclaimer"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+  <a href="Dockerfile"><img src="https://img.shields.io/badge/docker-build%20passing-2496ED?logo=docker&logoColor=white" alt="Docker Build"></a>
+  <a href="gateway/package.json"><img src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white" alt="Node Version"></a>
+  <a href="connector/Cargo.toml"><img src="https://img.shields.io/badge/rust-2021-000000?logo=rust&logoColor=white" alt="Rust Version"></a>
+  <img src="https://img.shields.io/badge/status-beta%20%2F%20prototype-yellow" alt="Project Status">
+</p>
 
-**Status: private prototype, not for production use.**
+<p align="center">
+  <b>A modern, self-hosted browser client for TeamSpeak 3 servers — no install, just open a tab.</b>
+</p>
 
-## Features
+<p align="center">
+  <a href="#-quick-start">🚀 Quick Start</a> ·
+  <a href="INSTALL.md">📖 Installation</a> ·
+  <a href="https://github.com/Moepchi/webspeak3/issues">🐛 Report Bug</a>
+</p>
 
-- Connect to a real TeamSpeak (3/6) server, with optional server and
-  default-channel passwords
-- Remembers the last server/nickname you connected with
-- Channel/client tree with correct ordering, click to switch channels
-- Per-client status icons (channel commander, away, mic muted, deafened)
-- Text chat: channel, server-wide, and private (1:1) — each in its own tab
-- Voice with voice activation ("Sprachaktivierung", not push-to-talk),
-  adjustable sensitivity, and per-client speaking indicators
-- Audio output device picker (routes playback to a chosen device) — works in
-  Chrome/Edge and Firefox 130+; playback is routed through a hidden `<audio>`
-  element so device switching works even in browsers without
-  `AudioContext.setSinkId`
-- Light/dark theme
+---
 
-## Architecture
+## 📸 Preview
+
+<table>
+  <tr>
+    <th>Dark Mode</th>
+    <th>Light Mode</th>
+  </tr>
+  <tr>
+    <td><img src="https://placehold.co/560x360/1e1e1e/6bd6d6?text=Dark+Mode+Screenshot" width="100%" alt="Dark mode screenshot placeholder"></td>
+    <td><img src="https://placehold.co/560x360/f4f4f4/1e1e1e?text=Light+Mode+Screenshot" width="100%" alt="Light mode screenshot placeholder"></td>
+  </tr>
+</table>
+
+<sub>Replace the placeholders above with real screenshots/GIFs once available.</sub>
+
+## ✨ Features
+
+|  |  |
+|---|---|
+| 🔌 **Real TeamSpeak protocol** | Connects to actual TS3/TS6 servers over a WebSocket gateway — the server stays exactly as-is |
+| 🎙️ **Low-latency voice** | Opus-encoded voice with voice activation ("Sprachaktivierung") and adjustable sensitivity |
+| 🔊 **Custom audio output picker** | Route playback to any output device — works even in browsers without `AudioContext.setSinkId` |
+| 💬 **Full text chat** | Channel, server-wide, and private (1:1) chat, each in its own tab |
+| 🌳 **Live channel/client tree** | Correct ordering, status icons (channel commander, away, muted, deafened), click to switch channels |
+| ⭐ **Favorites & reconnect** | Remembers your last server/nickname; switch servers without leaving your tab |
+| 🌗 **Dark / light theme** | Clean, modern UI that adapts to your preference |
+| 🔁 **Seamless reconnect** | Switch connections mid-session — old state tears down cleanly, no leaks or duplicates |
+
+## 🧱 Tech Stack
+
+<p>
+  <img src="https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black" alt="React">
+  <img src="https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white" alt="Vite">
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Node.js-339933?logo=node.js&logoColor=white" alt="Node.js">
+  <img src="https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=white" alt="Rust">
+  <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white" alt="Docker">
+</p>
+
+<details>
+<summary><b>🏗️ Architecture details</b></summary>
+
+<br>
 
 Browsers can't send raw UDP, which is what TeamSpeak's native protocol runs
 over, so a pure client-side implementation isn't possible — a server-side
@@ -48,9 +87,21 @@ Browser (web/)  <--WebSocket-->  Gateway (gateway/)  <--stdin/stdout JSON-->  Ru
   protocol implementation. Handles connecting, channel/client state, chat,
   and Opus-encoded voice.
 
-## Installation
+</details>
 
-See [INSTALL.md](INSTALL.md).
+## 🚀 Quick Start
+
+Spin up the whole stack with Docker Compose:
+
+```bash
+docker compose up -d
+```
+
+That's it — open `http://localhost:8080` (or your configured port/reverse
+proxy) and connect to any TeamSpeak 3 server.
+
+For manual/non-Docker setup, environment variables, and reverse-proxy notes,
+see the full [Installation Guide](INSTALL.md).
 
 ## Credits
 

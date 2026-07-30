@@ -1,0 +1,447 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+
+export type Lang = "de" | "en";
+export type LangPref = "auto" | Lang;
+
+const LANGUAGE_KEY = "webspeak3:language";
+
+// Keyed flat dictionary. Every user-facing string in the app should have an
+// entry here in both languages - falls back to the English string (or the
+// raw key) if a translation is missing, so a partial dictionary never blanks
+// out the UI.
+const translations: Record<Lang, Record<string, string>> = {
+  de: {
+    "menu.connections": "Verbindungen",
+    "menu.connections.connect": "Verbinden",
+    "menu.connections.disconnectCurrent": "Aktuelle Verbindung trennen",
+    "menu.connections.disconnectAll": "Alle Verbindungen trennen",
+    "menu.favorites": "Favoriten",
+    "menu.favorites.add": "Zu Favoriten hinzufügen",
+    "menu.favorites.manage": "Favoriten verwalten",
+    "menu.self": "Selbst",
+    "menu.rights": "Rechte",
+    "menu.extras": "Extras",
+    "menu.help": "Hilfe",
+    "menu.extras.identities": "Identitäten",
+    "menu.extras.contacts": "Kontakte",
+    "menu.extras.collectedUrls": "Gesammelte URLs",
+    "menu.extras.fileTransfers": "Dateitransfers",
+    "menu.extras.inviteFriend": "Freund einladen",
+    "menu.extras.offlineMessages": "Offline Nachrichten",
+    "menu.extras.whisperLists": "Whisperlisten",
+    "menu.extras.whisperHistory": "Whisper Verlauf",
+    "menu.extras.clientLog": "Client Protokoll",
+    "menu.extras.banList": "Bannliste",
+    "menu.extras.complaintList": "Beschwerdeliste",
+    "menu.extras.serverQueryLogin": "ServerQuery Login",
+    "menu.extras.serverLog": "Server Protokoll",
+    "menu.extras.startRecording": "Aufnahme starten",
+    "menu.extras.startMultitrackRecording": "Start Multitrack Recording",
+    "menu.extras.stopRecording": "Aufnahme beenden",
+    "menu.extras.installOverwolf": "Overwolf installieren",
+    "menu.extras.options": "Optionen",
+
+    "toolbar.setAway": "Als abwesend markieren",
+    "toolbar.backOnline": "Wieder online",
+    "toolbar.awayOptions": "Abwesenheitsoptionen",
+    "toolbar.micEnable": "Mikrofon aktivieren",
+    "toolbar.micMute": "Mikrofon stummschalten",
+    "toolbar.micUnmute": "Mikrofon aktivieren (unmute)",
+    "toolbar.vadSensitivity": "Empfindlichkeit der Sprachaktivierung",
+    "toolbar.muteSound": "Ton stummschalten (Ausgabe stumm)",
+    "toolbar.unmuteSound": "Ton aktivieren (Ausgabe an)",
+    "toolbar.chooseOutputDevice": "Wiedergabegerät wählen",
+    "toolbar.toggleTheme": "Design wechseln",
+
+    "away.setGlobal": "Global abwesend setzen",
+    "away.setGlobalStatus": "Abwesenheit-Status global setzen",
+
+    "connect.title": "Verbinden",
+    "connect.serverAddress": "Server Nickname oder Adresse:",
+    "connect.serverPassword": "Server Passwort:",
+    "connect.nickname": "Nickname:",
+    "connect.phoneticNickname": "Phonetischer Nickname:",
+    "connect.identity": "Identität:",
+    "connect.defaultChannel": "Standard Channel:",
+    "connect.recordingProfile": "Aufnahmeprofil:",
+    "connect.channelPassword": "Channel Passwort:",
+    "connect.playbackProfile": "Wiedergabeprofil:",
+    "connect.onetimeGrant": "Einmalige Berechtigung:",
+    "connect.hotkeyProfile": "Hotkeyprofil:",
+    "connect.sendMyTeamSpeakId": "myTeamSpeak ID senden",
+    "connect.soundPack": "Sound Pack:",
+    "connect.more": "Mehr",
+    "connect.less": "Weniger",
+    "connect.connect": "Verbinden",
+    "connect.connecting": "Verbinde…",
+    "connect.newTab": "In neuem Tab",
+    "connect.cancel": "Abbrechen",
+
+    "favorites.title": "🔖 myTeamSpeak Favoriten",
+    "favorites.synced": "Synchronisierte Favoriten",
+    "favorites.notLoggedIn": "Nicht angemeldet",
+    "favorites.local": "Lokale Favoriten",
+    "favorites.unnamed": "(unbenannt)",
+    "favorites.bookmarkName": "Bookmark Name:",
+    "favorites.newFavoriteName": "Neuer Favorit",
+    "favorites.showServerQueryClients": "ServerQuery Clients anzeigen",
+    "favorites.connectOnStartup": "Beim Start verbinden",
+    "favorites.enableMyTeamSpeak": "Aktiviere myTeamSpeak Funktionen",
+    "favorites.new": "Neuer Favorit",
+    "favorites.newFolder": "Neuer Ordner",
+    "favorites.remove": "Entfernen",
+    "favorites.ok": "OK",
+    "favorites.cancel": "Abbrechen",
+    "favorites.apply": "Anwenden",
+
+    "away.dialog.title": "Abwesenheit-Nachricht setzen",
+    "away.dialog.message": "Nachricht:",
+    "away.dialog.template": "Vorlage:",
+    "away.dialog.none": "<Keine>",
+    "away.dialog.ok": "OK",
+    "away.dialog.save": "Speichern",
+    "away.dialog.cancel": "Abbrechen",
+
+    "options.title": "Optionen",
+    "options.ok": "OK",
+    "options.cancel": "Abbrechen",
+    "options.notImplemented": "Diese Einstellungen sind noch nicht implementiert.",
+    "options.section.anwendung": "Anwendung",
+    "options.section.wiedergabe": "Wiedergabe",
+    "options.section.aufnahme": "Aufnahme",
+    "options.section.design": "Design",
+    "options.section.erweiterungen": "Erweiterungen",
+    "options.section.hotkeys": "Hotkeys",
+    "options.section.whispern": "Whispern",
+    "options.section.downloads": "Downloads",
+    "options.section.chat": "Chat",
+    "options.section.sicherheit": "Sicherheit",
+    "options.section.nachrichten": "Nachrichten",
+    "options.section.meldungen": "Meldungen",
+
+    "app.title": "Anwendung",
+    "app.subtitle": "Allgemeine Anwendungseinstellungen",
+    "app.language": "Sprache",
+    "app.language.auto": "Systemvorgabe",
+    "app.language.de": "Deutsch",
+    "app.language.en": "English",
+
+    "playback.title": "Wiedergabe",
+    "playback.subtitle": "Ändern der Wiedergabeeinstellungen",
+    "playback.profile": "Profile",
+    "playback.default": "Standard",
+    "playback.device": "Wiedergabegerät:",
+    "playback.systemDefault": "System default",
+    "playback.quiet": "Leise",
+    "playback.loud": "Laut",
+    "playback.voiceVolume": "Sprachlautstärke",
+    "playback.playTestTone": "▶ Test Ton abspielen",
+    "playback.options": "Optionen",
+    "playback.autoVolume": "Automatische Lautstärkeanpassung",
+    "playback.ownMicClicks": "Eigener Client spielt Mikro Klicks",
+    "playback.otherMicClicks": "Andere Clients spielen Mikro Klicks",
+
+    "recording.title": "Aufnahme",
+    "recording.subtitle": "Ändern der Aufnahmeeinstellungen",
+    "recording.device": "Aufnahmegerät:",
+    "recording.activation": "Aktivierung",
+    "recording.pushToTalk": "Push-To-Talk",
+    "recording.continuous": "Dauersenden",
+    "recording.voiceActivation": "Automatische Spracherkennung",
+    "recording.testStart": "Test starten",
+    "recording.testStop": "Test beenden",
+    "recording.hangoverDelay": "Abschaltverzögerung:",
+    "recording.secondsUnit": "Sek",
+    "recording.dsp": "Digital Signal Processing",
+    "recording.typingAttenuation": "Typing attenuation",
+    "recording.echoCancellation": "Echo Dämpfung",
+    "recording.noiseSuppression": "Hintergrundgeräusche entfernen",
+
+    "info.address": "Adresse:",
+    "info.version": "Version:",
+    "info.license": "Lizenz:",
+    "info.currentClients": "Aktuelle Clients:",
+    "info.currentChannels": "Aktuelle Channel:",
+    "info.topic": "Topic:",
+    "info.audioCodec": "Audio Codec:",
+    "info.passwordProtected": "Passwort geschützt:",
+    "info.clients": "Clients:",
+    "info.yes": "Ja",
+    "info.no": "Nein",
+
+    "tree.notConnected": "Nicht verbunden",
+    "tree.clickToSelect": "Klicken zum Auswählen, Doppelklick zum Beitreten",
+    "tree.passwordProtected": "Passwortgeschützt",
+    "tree.privateChatWith": "Privater Chat mit",
+    "tree.poke": "Anstupsen",
+    "tree.channelCommander": "Channel Commander",
+    "tree.away": "Abwesend",
+    "tree.micMuted": "Mikrofon stummgeschaltet",
+    "tree.soundMuted": "Ton stummgeschaltet (deafened)",
+
+    "chat.server": "Server",
+    "chat.channel": "Channel",
+    "chat.notConnected": "Nicht verbunden",
+    "chat.messageChannel": "Nachricht an Channel...",
+    "chat.messageServer": "Nachricht an Server...",
+    "chat.messagePartner": "Nachricht an {name}...",
+    "chat.send": "Senden",
+    "chat.you": "Du",
+
+    "poke.title": "Anstupsen",
+    "poke.optionalMessage": "Optionale Nachricht...",
+    "poke.send": "Anstupsen",
+    "poke.cancel": "Abbrechen",
+    "poke.pokedYou": "hat dich angestupst",
+    "poke.dismiss": "Schließen",
+
+    "connectError.dismiss": "Schließen",
+    "dialog.close": "Schließen",
+  },
+  en: {
+    "menu.connections": "Connections",
+    "menu.connections.connect": "Connect",
+    "menu.connections.disconnectCurrent": "Disconnect from current server",
+    "menu.connections.disconnectAll": "Disconnect from all servers",
+    "menu.favorites": "Bookmarks",
+    "menu.favorites.add": "Add bookmark",
+    "menu.favorites.manage": "Manage bookmarks",
+    "menu.self": "Self",
+    "menu.rights": "Permissions",
+    "menu.extras": "Tools",
+    "menu.help": "Help",
+    "menu.extras.identities": "Identities",
+    "menu.extras.contacts": "Contacts",
+    "menu.extras.collectedUrls": "Collected URLs",
+    "menu.extras.fileTransfers": "File Transfers",
+    "menu.extras.inviteFriend": "Invite a friend",
+    "menu.extras.offlineMessages": "Offline Messages",
+    "menu.extras.whisperLists": "Whisper Lists",
+    "menu.extras.whisperHistory": "Whisper History",
+    "menu.extras.clientLog": "Client Log",
+    "menu.extras.banList": "Ban List",
+    "menu.extras.complaintList": "Complaint List",
+    "menu.extras.serverQueryLogin": "ServerQuery Login",
+    "menu.extras.serverLog": "Server Log",
+    "menu.extras.startRecording": "Start Recording",
+    "menu.extras.startMultitrackRecording": "Start Multitrack Recording",
+    "menu.extras.stopRecording": "Stop Recording",
+    "menu.extras.installOverwolf": "Install Overwolf",
+    "menu.extras.options": "Options",
+
+    "toolbar.setAway": "Set away",
+    "toolbar.backOnline": "Back online",
+    "toolbar.awayOptions": "Away options",
+    "toolbar.micEnable": "Enable microphone",
+    "toolbar.micMute": "Mute microphone",
+    "toolbar.micUnmute": "Unmute microphone",
+    "toolbar.vadSensitivity": "Voice activation sensitivity",
+    "toolbar.muteSound": "Mute sound (deafen)",
+    "toolbar.unmuteSound": "Unmute sound (undeafen)",
+    "toolbar.chooseOutputDevice": "Choose output device",
+    "toolbar.toggleTheme": "Toggle theme",
+
+    "away.setGlobal": "Set globally away",
+    "away.setGlobalStatus": "Set global away status",
+
+    "connect.title": "Connect",
+    "connect.serverAddress": "Server nickname or address:",
+    "connect.serverPassword": "Server password:",
+    "connect.nickname": "Nickname:",
+    "connect.phoneticNickname": "Phonetic nickname:",
+    "connect.identity": "Identity:",
+    "connect.defaultChannel": "Default channel:",
+    "connect.recordingProfile": "Capture profile:",
+    "connect.channelPassword": "Channel password:",
+    "connect.playbackProfile": "Playback profile:",
+    "connect.onetimeGrant": "One-time privilege key:",
+    "connect.hotkeyProfile": "Hotkey profile:",
+    "connect.sendMyTeamSpeakId": "Send myTeamSpeak ID",
+    "connect.soundPack": "Sound pack:",
+    "connect.more": "More",
+    "connect.less": "Less",
+    "connect.connect": "Connect",
+    "connect.connecting": "Connecting…",
+    "connect.newTab": "In new tab",
+    "connect.cancel": "Cancel",
+
+    "favorites.title": "🔖 myTeamSpeak Bookmarks",
+    "favorites.synced": "Synced Bookmarks",
+    "favorites.notLoggedIn": "Not logged in",
+    "favorites.local": "Local Bookmarks",
+    "favorites.unnamed": "(unnamed)",
+    "favorites.bookmarkName": "Bookmark name:",
+    "favorites.newFavoriteName": "New bookmark",
+    "favorites.showServerQueryClients": "Show ServerQuery clients",
+    "favorites.connectOnStartup": "Connect on startup",
+    "favorites.enableMyTeamSpeak": "Enable myTeamSpeak features",
+    "favorites.new": "New bookmark",
+    "favorites.newFolder": "New folder",
+    "favorites.remove": "Remove",
+    "favorites.ok": "OK",
+    "favorites.cancel": "Cancel",
+    "favorites.apply": "Apply",
+
+    "away.dialog.title": "Set away message",
+    "away.dialog.message": "Message:",
+    "away.dialog.template": "Template:",
+    "away.dialog.none": "<None>",
+    "away.dialog.ok": "OK",
+    "away.dialog.save": "Save",
+    "away.dialog.cancel": "Cancel",
+
+    "options.title": "Options",
+    "options.ok": "OK",
+    "options.cancel": "Cancel",
+    "options.notImplemented": "This setting isn't implemented yet.",
+    "options.section.anwendung": "Application",
+    "options.section.wiedergabe": "Playback",
+    "options.section.aufnahme": "Capture",
+    "options.section.design": "Appearance",
+    "options.section.erweiterungen": "Addons",
+    "options.section.hotkeys": "Hotkeys",
+    "options.section.whispern": "Whisper",
+    "options.section.downloads": "Downloads",
+    "options.section.chat": "Chat",
+    "options.section.sicherheit": "Security",
+    "options.section.nachrichten": "Notifications",
+    "options.section.meldungen": "Messages",
+
+    "app.title": "Application",
+    "app.subtitle": "General application settings",
+    "app.language": "Language",
+    "app.language.auto": "System default",
+    "app.language.de": "Deutsch",
+    "app.language.en": "English",
+
+    "playback.title": "Playback",
+    "playback.subtitle": "Change your playback settings",
+    "playback.profile": "Profile",
+    "playback.default": "Default",
+    "playback.device": "Playback device:",
+    "playback.systemDefault": "System default",
+    "playback.quiet": "Quiet",
+    "playback.loud": "Loud",
+    "playback.voiceVolume": "Voice volume",
+    "playback.playTestTone": "▶ Play test sound",
+    "playback.options": "Options",
+    "playback.autoVolume": "Automatic volume adjustment",
+    "playback.ownMicClicks": "Play mic clicks for own client",
+    "playback.otherMicClicks": "Play mic clicks for other clients",
+
+    "recording.title": "Capture",
+    "recording.subtitle": "Change your capture settings",
+    "recording.device": "Capture device:",
+    "recording.activation": "Activation",
+    "recording.pushToTalk": "Push-To-Talk",
+    "recording.continuous": "Continuous transmission",
+    "recording.voiceActivation": "Voice activation detection",
+    "recording.testStart": "Start test",
+    "recording.testStop": "Stop test",
+    "recording.hangoverDelay": "Delay before deactivation:",
+    "recording.secondsUnit": "sec",
+    "recording.dsp": "Digital Signal Processing",
+    "recording.typingAttenuation": "Typing attenuation",
+    "recording.echoCancellation": "Echo cancellation",
+    "recording.noiseSuppression": "Remove background noise",
+
+    "info.address": "Address:",
+    "info.version": "Version:",
+    "info.license": "License:",
+    "info.currentClients": "Current clients:",
+    "info.currentChannels": "Current channels:",
+    "info.topic": "Topic:",
+    "info.audioCodec": "Audio codec:",
+    "info.passwordProtected": "Password protected:",
+    "info.clients": "Clients:",
+    "info.yes": "Yes",
+    "info.no": "No",
+
+    "tree.notConnected": "Not connected",
+    "tree.clickToSelect": "Click to select, double-click to join",
+    "tree.passwordProtected": "Password protected",
+    "tree.privateChatWith": "Private chat with",
+    "tree.poke": "Poke",
+    "tree.channelCommander": "Channel commander",
+    "tree.away": "Away",
+    "tree.micMuted": "Microphone muted",
+    "tree.soundMuted": "Sound muted (deafened)",
+
+    "chat.server": "Server",
+    "chat.channel": "Channel",
+    "chat.notConnected": "Not connected",
+    "chat.messageChannel": "Message channel...",
+    "chat.messageServer": "Message server...",
+    "chat.messagePartner": "Message {name}...",
+    "chat.send": "Send",
+    "chat.you": "You",
+
+    "poke.title": "Poke",
+    "poke.optionalMessage": "Optional message...",
+    "poke.send": "Poke",
+    "poke.cancel": "Cancel",
+    "poke.pokedYou": "poked you",
+    "poke.dismiss": "Dismiss",
+
+    "connectError.dismiss": "Dismiss",
+    "dialog.close": "Close",
+  },
+};
+
+function detectSystemLang(): Lang {
+  const nav = typeof navigator !== "undefined" ? navigator.language : "en";
+  return nav?.toLowerCase().startsWith("de") ? "de" : "en";
+}
+
+export function resolveLang(pref: LangPref): Lang {
+  return pref === "auto" ? detectSystemLang() : pref;
+}
+
+export function loadLangPref(): LangPref {
+  const raw = localStorage.getItem(LANGUAGE_KEY);
+  return raw === "de" || raw === "en" || raw === "auto" ? raw : "auto";
+}
+
+export function saveLangPref(pref: LangPref) {
+  localStorage.setItem(LANGUAGE_KEY, pref);
+}
+
+type TranslateFn = (key: string, vars?: Record<string, string>) => string;
+
+function interpolate(template: string, vars?: Record<string, string>): string {
+  if (!vars) return template;
+  return template.replace(/\{(\w+)\}/g, (match, name) => vars[name] ?? match);
+}
+
+const LanguageContext = createContext<{ lang: Lang; langPref: LangPref; setLangPref: (p: LangPref) => void; t: TranslateFn }>({
+  lang: "en",
+  langPref: "auto",
+  setLangPref: () => {},
+  t: (key) => translations.en[key] ?? key,
+});
+
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const [langPref, setLangPrefState] = useState<LangPref>(() => loadLangPref());
+  const lang = resolveLang(langPref);
+
+  useEffect(() => {
+    saveLangPref(langPref);
+  }, [langPref]);
+
+  const t: TranslateFn = (key, vars) =>
+    interpolate(translations[lang][key] ?? translations.en[key] ?? key, vars);
+
+  return (
+    <LanguageContext.Provider value={{ lang, langPref, setLangPref: setLangPrefState, t }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+}
+
+export function useLanguage() {
+  return useContext(LanguageContext);
+}
+
+export function useT() {
+  return useContext(LanguageContext).t;
+}

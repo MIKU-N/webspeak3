@@ -9,6 +9,7 @@ import {
   listAudioOutputDevices,
   pickAudioOutputDevice,
 } from "./voice";
+import { LanguageProvider, useLanguage, useT, type LangPref } from "./i18n";
 
 // In dev, the gateway runs standalone on its own port. In production it's
 // served from the same origin/port as the web app (single container behind a
@@ -132,12 +133,13 @@ function ClientIcon() {
 }
 
 function ClientStatusIcons({ client }: { client: ClientInfo }) {
+  const t = useT();
   return (
     <span className="ts-status-icons">
-      {client.isChannelCommander && <span title="Channel commander">⭐</span>}
-      {client.away && <span title="Away">💤</span>}
-      {(client.inputMuted || !client.inputHardwareEnabled) && <span title="Microphone muted">🔇</span>}
-      {client.outputMuted && <span title="Sound muted (deafened)">🔕</span>}
+      {client.isChannelCommander && <span title={t("tree.channelCommander")}>⭐</span>}
+      {client.away && <span title={t("tree.away")}>💤</span>}
+      {(client.inputMuted || !client.inputHardwareEnabled) && <span title={t("tree.micMuted")}>🔇</span>}
+      {client.outputMuted && <span title={t("tree.soundMuted")}>🔕</span>}
     </span>
   );
 }
@@ -176,6 +178,7 @@ function ChannelTree({
   onOpenPrivateChat: (clientId: number, clientName: string) => void;
   onPokeClient: (clientId: number, clientName: string) => void;
 }) {
+  const t = useT();
   const children = channels.filter((c) => c.parent === parent).sort((a, b) => a.order - b.order);
   if (children.length === 0) return null;
 
@@ -189,11 +192,11 @@ function ChannelTree({
             }`}
             onClick={() => onSelectItem({ type: "channel", id: channel.id })}
             onDoubleClick={() => onSwitchChannel(channel.id)}
-            title="Click to select, double-click to join"
+            title={t("tree.clickToSelect")}
           >
             <ChannelIcon />
             <span>{channel.name}</span>
-            {channel.hasPassword && <span title="Password protected">🔒</span>}
+            {channel.hasPassword && <span title={t("tree.passwordProtected")}>🔒</span>}
           </div>
           <ul className="ts-tree-list">
             {clients
@@ -205,7 +208,7 @@ function ChannelTree({
                       talkers.has(c.id) ? " ts-talking" : ""
                     }`}
                     onClick={c.id === ownClientId ? undefined : () => onOpenPrivateChat(c.id, c.name)}
-                    title={c.id === ownClientId ? undefined : `Private chat with ${c.name}`}
+                    title={c.id === ownClientId ? undefined : `${t("tree.privateChatWith")} ${c.name}`}
                   >
                     <ClientIcon />
                     <span>{c.name}</span>
@@ -220,7 +223,7 @@ function ChannelTree({
                           e.stopPropagation();
                           onPokeClient(c.id, c.name);
                         }}
-                        title={`Poke ${c.name}`}
+                        title={`${t("tree.poke")} ${c.name}`}
                       >
                         👉
                       </button>
@@ -268,6 +271,7 @@ function InfoPanel({
   channels: ChannelInfo[];
   clients: ClientInfo[];
 }) {
+  const t = useT();
   if (!selected || selected.type === "server") {
     return (
       <div className="ts-info-panel">
@@ -276,23 +280,23 @@ function InfoPanel({
           <span>{serverName || host}</span>
         </div>
         <div className="ts-info-row">
-          <span>Adresse:</span> <span>{host}</span>
+          <span>{t("info.address")}</span> <span>{host}</span>
         </div>
         {serverVersion && (
           <div className="ts-info-row">
-            <span>Version:</span> <span>{serverVersion}</span>
+            <span>{t("info.version")}</span> <span>{serverVersion}</span>
           </div>
         )}
         {serverLicense && (
           <div className="ts-info-row">
-            <span>Lizenz:</span> <span>{serverLicense}</span>
+            <span>{t("info.license")}</span> <span>{serverLicense}</span>
           </div>
         )}
         <div className="ts-info-row">
-          <span>Aktuelle Clients:</span> <span>{totalClientCount} / {serverMaxClients || "∞"}</span>
+          <span>{t("info.currentClients")}</span> <span>{totalClientCount} / {serverMaxClients || "∞"}</span>
         </div>
         <div className="ts-info-row">
-          <span>Aktuelle Channel:</span> <span>{channels.length}</span>
+          <span>{t("info.currentChannels")}</span> <span>{channels.length}</span>
         </div>
       </div>
     );
@@ -310,17 +314,17 @@ function InfoPanel({
       </div>
       {channel.topic && (
         <div className="ts-info-row">
-          <span>Topic:</span> <span>{channel.topic}</span>
+          <span>{t("info.topic")}</span> <span>{channel.topic}</span>
         </div>
       )}
       <div className="ts-info-row">
-        <span>Audio Codec:</span> <span>{channel.codec}</span>
+        <span>{t("info.audioCodec")}</span> <span>{channel.codec}</span>
       </div>
       <div className="ts-info-row">
-        <span>Password protected:</span> <span>{channel.hasPassword ? "Yes" : "No"}</span>
+        <span>{t("info.passwordProtected")}</span> <span>{channel.hasPassword ? t("info.yes") : t("info.no")}</span>
       </div>
       <div className="ts-info-row">
-        <span>Clients:</span> <span>{clientCount} / {channel.maxClients ?? "∞"}</span>
+        <span>{t("info.clients")}</span> <span>{clientCount} / {channel.maxClients ?? "∞"}</span>
       </div>
     </div>
   );
@@ -384,23 +388,24 @@ function ConnectDialog({
   onConnect: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   return (
     <div className="ts-dialog-backdrop" onClick={onCancel}>
       <div className="ts-dialog ts-connect-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="ts-dialog-titlebar">
-          <span>Verbinden</span>
-          <button onClick={onCancel} title="Close">
+          <span>{t("connect.title")}</span>
+          <button onClick={onCancel} title={t("dialog.close")}>
             ✕
           </button>
         </div>
         <div className="ts-dialog-body">
           <div className="ts-dialog-row">
             <label className="ts-dialog-field ts-dialog-field-grow">
-              Server Nickname oder Adresse:
+              {t("connect.serverAddress")}
               <input autoFocus value={host} onChange={(e) => onHostChange(e.target.value)} />
             </label>
             <label className="ts-dialog-field">
-              Server Passwort:
+              {t("connect.serverPassword")}
               <input
                 type="password"
                 value={serverPassword}
@@ -409,34 +414,34 @@ function ConnectDialog({
             </label>
           </div>
           <label className="ts-dialog-field">
-            Nickname:
+            {t("connect.nickname")}
             <input value={nickname} onChange={(e) => onNicknameChange(e.target.value)} />
           </label>
 
           {expanded && (
             <div className="ts-dialog-grid">
               <label className="ts-dialog-field">
-                Phonetischer Nickname:
+                {t("connect.phoneticNickname")}
                 <input disabled title="Not supported yet" />
               </label>
               <label className="ts-dialog-field">
-                Identität:
+                {t("connect.identity")}
                 <select disabled defaultValue="Standard">
                   <option>Standard</option>
                 </select>
               </label>
               <label className="ts-dialog-field">
-                Standard Channel:
+                {t("connect.defaultChannel")}
                 <input value={defaultChannel} onChange={(e) => onDefaultChannelChange(e.target.value)} />
               </label>
               <label className="ts-dialog-field">
-                Aufnahmeprofil:
+                {t("connect.recordingProfile")}
                 <select disabled defaultValue="Standard">
                   <option>Standard</option>
                 </select>
               </label>
               <label className="ts-dialog-field">
-                Channel Passwort:
+                {t("connect.channelPassword")}
                 <input
                   type="password"
                   value={channelPassword}
@@ -444,27 +449,27 @@ function ConnectDialog({
                 />
               </label>
               <label className="ts-dialog-field">
-                Wiedergabeprofil:
+                {t("connect.playbackProfile")}
                 <select disabled defaultValue="Standard">
                   <option>Standard</option>
                 </select>
               </label>
               <label className="ts-dialog-field">
-                Einmalige Berechtigung:
+                {t("connect.onetimeGrant")}
                 <input disabled title="Not supported yet" />
               </label>
               <label className="ts-dialog-field">
-                Hotkeyprofil:
+                {t("connect.hotkeyProfile")}
                 <select disabled defaultValue="Standard">
                   <option>Standard</option>
                 </select>
               </label>
               <label className="ts-dialog-checkbox">
                 <input type="checkbox" disabled title="Not supported yet" />
-                myTeamSpeak ID senden
+                {t("connect.sendMyTeamSpeakId")}
               </label>
               <label className="ts-dialog-field">
-                Sound Pack:
+                {t("connect.soundPack")}
                 <select disabled defaultValue="Standard">
                   <option>Standard</option>
                 </select>
@@ -473,15 +478,15 @@ function ConnectDialog({
           )}
         </div>
         <div className="ts-dialog-buttons">
-          <button onClick={onToggleExpanded}>{expanded ? "Weniger" : "Mehr"}</button>
+          <button onClick={onToggleExpanded}>{expanded ? t("connect.less") : t("connect.more")}</button>
           <div className="ts-dialog-buttons-right">
             <button onClick={onConnect} disabled={connecting || !host || !nickname}>
-              {connecting ? "Connecting…" : "Verbinden"}
+              {connecting ? t("connect.connecting") : t("connect.connect")}
             </button>
             <button disabled title="Not supported in the web client">
-              In neuem Tab
+              {t("connect.newTab")}
             </button>
-            <button onClick={onCancel}>Abbrechen</button>
+            <button onClick={onCancel}>{t("connect.cancel")}</button>
           </div>
         </div>
       </div>
@@ -500,11 +505,12 @@ function FavoritesDialog({
   onSave: (favorites: Favorite[]) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const pendingNewRef = useRef<Favorite | null>(
     prefillNew
       ? {
           id: crypto.randomUUID(),
-          bookmarkName: prefillNew.host || "Neuer Favorit",
+          bookmarkName: prefillNew.host || t("favorites.newFavoriteName"),
           ...prefillNew,
         }
       : null
@@ -526,7 +532,7 @@ function FavoritesDialog({
   const handleNewFavorite = () => {
     const nf: Favorite = {
       id: crypto.randomUUID(),
-      bookmarkName: "Neuer Favorit",
+      bookmarkName: t("favorites.newFavoriteName"),
       nickname: "",
       host: "",
       serverPassword: "",
@@ -547,16 +553,16 @@ function FavoritesDialog({
     <div className="ts-dialog-backdrop" onClick={onClose}>
       <div className="ts-dialog ts-favorites-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="ts-dialog-titlebar">
-          <span>🔖 myTeamSpeak Favoriten</span>
-          <button onClick={onClose} title="Close">
+          <span>{t("favorites.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
             ✕
           </button>
         </div>
         <div className="ts-favorites-body">
           <div className="ts-favorites-list-col">
-            <div className="ts-favorites-list-group-title">Synchronisierte Favoriten</div>
-            <div className="ts-favorites-list-empty">Nicht angemeldet</div>
-            <div className="ts-favorites-list-group-title">Lokale Favoriten</div>
+            <div className="ts-favorites-list-group-title">{t("favorites.synced")}</div>
+            <div className="ts-favorites-list-empty">{t("favorites.notLoggedIn")}</div>
+            <div className="ts-favorites-list-group-title">{t("favorites.local")}</div>
             <ul className="ts-favorites-list">
               {draft.map((f) => (
                 <li
@@ -564,7 +570,7 @@ function FavoritesDialog({
                   className={`ts-favorites-list-item${f.id === selectedId ? " ts-favorites-list-item-selected" : ""}`}
                   onClick={() => setSelectedId(f.id)}
                 >
-                  {f.bookmarkName || "(unbenannt)"}
+                  {f.bookmarkName || t("favorites.unnamed")}
                 </li>
               ))}
             </ul>
@@ -572,7 +578,7 @@ function FavoritesDialog({
 
           <div className="ts-favorites-fields-col">
             <label className="ts-dialog-field">
-              Bookmark Name:
+              {t("favorites.bookmarkName")}
               <input
                 disabled={!selected}
                 value={selected?.bookmarkName ?? ""}
@@ -580,7 +586,7 @@ function FavoritesDialog({
               />
             </label>
             <label className="ts-dialog-field">
-              Nickname:
+              {t("connect.nickname")}
               <input
                 disabled={!selected}
                 value={selected?.nickname ?? ""}
@@ -588,11 +594,11 @@ function FavoritesDialog({
               />
             </label>
             <label className="ts-dialog-field">
-              Phonetischer Nickname:
+              {t("connect.phoneticNickname")}
               <input disabled title="Not supported yet" />
             </label>
             <label className="ts-dialog-field">
-              Server Nickname oder Adresse:
+              {t("connect.serverAddress")}
               <input
                 disabled={!selected}
                 value={selected?.host ?? ""}
@@ -600,7 +606,7 @@ function FavoritesDialog({
               />
             </label>
             <label className="ts-dialog-field">
-              Server Passwort:
+              {t("connect.serverPassword")}
               <input
                 type="password"
                 disabled={!selected}
@@ -609,7 +615,7 @@ function FavoritesDialog({
               />
             </label>
             <label className="ts-dialog-field">
-              Standard Channel:
+              {t("connect.defaultChannel")}
               <input
                 disabled={!selected}
                 value={selected?.defaultChannel ?? ""}
@@ -617,7 +623,7 @@ function FavoritesDialog({
               />
             </label>
             <label className="ts-dialog-field">
-              Standard Channel Passwort:
+              {t("connect.channelPassword")}
               <input
                 type="password"
                 disabled={!selected}
@@ -629,57 +635,57 @@ function FavoritesDialog({
 
           <div className="ts-favorites-profile-col">
             <label className="ts-dialog-field">
-              Identität:
+              {t("connect.identity")}
               <select disabled defaultValue="Standard">
                 <option>Standard</option>
               </select>
             </label>
             <label className="ts-dialog-field">
-              Aufnahmeprofil:
+              {t("connect.recordingProfile")}
               <select disabled defaultValue="Standard">
                 <option>Standard</option>
               </select>
             </label>
             <label className="ts-dialog-field">
-              Wiedergabeprofil:
+              {t("connect.playbackProfile")}
               <select disabled defaultValue="Standard">
                 <option>Standard</option>
               </select>
             </label>
             <label className="ts-dialog-field">
-              Hotkeyprofil:
+              {t("connect.hotkeyProfile")}
               <select disabled defaultValue="Standard">
                 <option>Standard</option>
               </select>
             </label>
             <label className="ts-dialog-field">
-              Sound Pack:
+              {t("connect.soundPack")}
               <select disabled defaultValue="Standard">
                 <option>Standard</option>
               </select>
             </label>
             <label className="ts-dialog-checkbox">
               <input type="checkbox" disabled defaultChecked title="Not supported yet" />
-              ServerQuery Clients anzeigen
+              {t("favorites.showServerQueryClients")}
             </label>
             <label className="ts-dialog-checkbox">
               <input type="checkbox" disabled title="Not supported yet" />
-              Beim Start verbinden
+              {t("favorites.connectOnStartup")}
             </label>
             <label className="ts-dialog-checkbox">
               <input type="checkbox" disabled title="Not supported yet" />
-              Aktiviere myTeamSpeak Funktionen
+              {t("favorites.enableMyTeamSpeak")}
             </label>
           </div>
         </div>
         <div className="ts-dialog-buttons">
           <div className="ts-dialog-buttons-right">
-            <button onClick={handleNewFavorite}>Neuer Favorit</button>
+            <button onClick={handleNewFavorite}>{t("favorites.new")}</button>
             <button disabled title="Not supported in the web client">
-              Neuer Ordner
+              {t("favorites.newFolder")}
             </button>
             <button onClick={handleRemove} disabled={!selected}>
-              Entfernen
+              {t("favorites.remove")}
             </button>
           </div>
           <div className="ts-dialog-buttons-right">
@@ -689,10 +695,10 @@ function FavoritesDialog({
                 onClose();
               }}
             >
-              OK
+              {t("favorites.ok")}
             </button>
-            <button onClick={onClose}>Abbrechen</button>
-            <button onClick={() => onSave(draft)}>Anwenden</button>
+            <button onClick={onClose}>{t("favorites.cancel")}</button>
+            <button onClick={() => onSave(draft)}>{t("favorites.apply")}</button>
           </div>
         </div>
       </div>
@@ -715,27 +721,28 @@ function AwayDialog({
   onSaveTemplate: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   return (
     <div className="ts-dialog-backdrop" onClick={onCancel}>
       <div className="ts-dialog ts-away-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="ts-dialog-titlebar">
-          <span>Abwesenheit-Nachricht setzen</span>
-          <button onClick={onCancel} title="Close">
+          <span>{t("away.dialog.title")}</span>
+          <button onClick={onCancel} title={t("dialog.close")}>
             ✕
           </button>
         </div>
         <div className="ts-dialog-body">
           <div className="ts-dialog-row">
-            <span className="ts-dialog-away-label">Nachricht:</span>
+            <span className="ts-dialog-away-label">{t("away.dialog.message")}</span>
             <label className="ts-dialog-field">
-              Vorlage:
+              {t("away.dialog.template")}
               <select
                 value=""
                 onChange={(e) => {
                   if (e.target.value) onMessageChange(e.target.value);
                 }}
               >
-                <option value="">&lt;None&gt;</option>
+                <option value="">{t("away.dialog.none")}</option>
                 {presets.map((p) => (
                   <option key={p} value={p}>
                     {p}
@@ -754,11 +761,11 @@ function AwayDialog({
         </div>
         <div className="ts-dialog-buttons">
           <div className="ts-dialog-buttons-right">
-            <button onClick={onOk}>OK</button>
+            <button onClick={onOk}>{t("away.dialog.ok")}</button>
             <button onClick={onSaveTemplate} disabled={!message.trim()}>
-              Speichern
+              {t("away.dialog.save")}
             </button>
-            <button onClick={onCancel}>Abbrechen</button>
+            <button onClick={onCancel}>{t("away.dialog.cancel")}</button>
           </div>
         </div>
       </div>
@@ -767,18 +774,18 @@ function AwayDialog({
 }
 
 const OPTIONS_SECTIONS = [
-  { id: "anwendung", icon: "🎧", label: "Anwendung" },
-  { id: "wiedergabe", icon: "🔊", label: "Wiedergabe" },
-  { id: "aufnahme", icon: "🎙️", label: "Aufnahme" },
-  { id: "design", icon: "🖌️", label: "Design" },
-  { id: "erweiterungen", icon: "🧩", label: "Erweiterungen" },
-  { id: "hotkeys", icon: "⌨️", label: "Hotkeys" },
-  { id: "whispern", icon: "🤫", label: "Whispern" },
-  { id: "downloads", icon: "⬇️", label: "Downloads" },
-  { id: "chat", icon: "💬", label: "Chat" },
-  { id: "sicherheit", icon: "🛡️", label: "Sicherheit" },
-  { id: "nachrichten", icon: "🔤", label: "Nachrichten" },
-  { id: "meldungen", icon: "ℹ️", label: "Meldungen" },
+  { id: "anwendung", icon: "🎧" },
+  { id: "wiedergabe", icon: "🔊" },
+  { id: "aufnahme", icon: "🎙️" },
+  { id: "design", icon: "🖌️" },
+  { id: "erweiterungen", icon: "🧩" },
+  { id: "hotkeys", icon: "⌨️" },
+  { id: "whispern", icon: "🤫" },
+  { id: "downloads", icon: "⬇️" },
+  { id: "chat", icon: "💬" },
+  { id: "sicherheit", icon: "🛡️" },
+  { id: "nachrichten", icon: "🔤" },
+  { id: "meldungen", icon: "ℹ️" },
 ] as const;
 
 interface AudioSettings {
@@ -831,27 +838,28 @@ function MicLevelBar({ levelRef, active }: { levelRef: React.MutableRefObject<nu
 }
 
 function WiedergabePanel({ audio }: { audio: AudioSettings }) {
+  const t = useT();
   const volumeDb = Math.round(20 * Math.log10(audio.playbackVolume || 0.001) * 10) / 10;
   return (
     <>
-      <h3>Wiedergabe</h3>
-      <p className="ts-options-subtitle">Ändern der Wiedergabeeinstellungen</p>
+      <h3>{t("playback.title")}</h3>
+      <p className="ts-options-subtitle">{t("playback.subtitle")}</p>
       <div className="ts-options-field-row">
-        <label>Profile</label>
+        <label>{t("playback.profile")}</label>
       </div>
       <div className="ts-options-columns">
         <ul className="ts-options-profile-list">
-          <li className="ts-options-profile-item-active">Standard</li>
+          <li className="ts-options-profile-item-active">{t("playback.default")}</li>
         </ul>
         <div className="ts-options-fields">
           <label className="ts-options-field">
-            Wiedergabegerät:
+            {t("playback.device")}
             <select
               value={audio.outputDeviceId}
               onFocus={audio.onRefreshOutputDevices}
               onChange={(e) => audio.onOutputDeviceChange(e.target.value)}
             >
-              <option value="">System default</option>
+              <option value="">{t("playback.systemDefault")}</option>
               {audio.outputDevices.map((d) => (
                 <option key={d.deviceId} value={d.deviceId}>
                   {d.label || `Output ${d.deviceId.slice(0, 6)}`}
@@ -860,9 +868,9 @@ function WiedergabePanel({ audio }: { audio: AudioSettings }) {
             </select>
           </label>
           <div className="ts-options-slider-row">
-            <span>Leise</span>
-            <span className="ts-options-slider-label">Sprachlautstärke</span>
-            <span>Laut</span>
+            <span>{t("playback.quiet")}</span>
+            <span className="ts-options-slider-label">{t("playback.voiceVolume")}</span>
+            <span>{t("playback.loud")}</span>
           </div>
           <div className="ts-options-slider-with-value">
             <input
@@ -878,20 +886,20 @@ function WiedergabePanel({ audio }: { audio: AudioSettings }) {
               {volumeDb} dB
             </span>
           </div>
-          <button onClick={audio.onPlayTestTone}>▶ Test Ton abspielen</button>
+          <button onClick={audio.onPlayTestTone}>{t("playback.playTestTone")}</button>
           <fieldset className="ts-options-fieldset">
-            <legend>Optionen</legend>
+            <legend>{t("playback.options")}</legend>
             <label className="ts-options-checkbox">
               <input type="checkbox" checked disabled readOnly />
-              Automatische Lautstärkeanpassung
+              {t("playback.autoVolume")}
             </label>
             <label className="ts-options-checkbox">
               <input type="checkbox" checked disabled readOnly />
-              Eigener Client spielt Mikro Klicks
+              {t("playback.ownMicClicks")}
             </label>
             <label className="ts-options-checkbox">
               <input type="checkbox" disabled readOnly />
-              Andere Clients spielen Mikro Klicks
+              {t("playback.otherMicClicks")}
             </label>
           </fieldset>
         </div>
@@ -901,23 +909,24 @@ function WiedergabePanel({ audio }: { audio: AudioSettings }) {
 }
 
 function AufnahmePanel({ audio }: { audio: AudioSettings }) {
+  const t = useT();
   return (
     <>
-      <h3>Aufnahme</h3>
-      <p className="ts-options-subtitle">Ändern der Aufnahmeeinstellungen</p>
+      <h3>{t("recording.title")}</h3>
+      <p className="ts-options-subtitle">{t("recording.subtitle")}</p>
       <div className="ts-options-columns">
         <ul className="ts-options-profile-list">
-          <li className="ts-options-profile-item-active">Standard</li>
+          <li className="ts-options-profile-item-active">{t("playback.default")}</li>
         </ul>
         <div className="ts-options-fields">
           <label className="ts-options-field">
-            Aufnahmegerät:
+            {t("recording.device")}
             <select
               value={audio.inputDeviceId}
               onFocus={audio.onRefreshInputDevices}
               onChange={(e) => audio.onInputDeviceChange(e.target.value)}
             >
-              <option value="">System default</option>
+              <option value="">{t("playback.systemDefault")}</option>
               {audio.inputDevices.map((d) => (
                 <option key={d.deviceId} value={d.deviceId}>
                   {d.label || `Input ${d.deviceId.slice(0, 6)}`}
@@ -926,18 +935,18 @@ function AufnahmePanel({ audio }: { audio: AudioSettings }) {
             </select>
           </label>
           <fieldset className="ts-options-fieldset">
-            <legend>Activation</legend>
+            <legend>{t("recording.activation")}</legend>
             <label className="ts-options-radio">
               <input type="radio" name="activation" disabled readOnly />
-              Push-To-Talk
+              {t("recording.pushToTalk")}
             </label>
             <label className="ts-options-radio">
               <input type="radio" name="activation" disabled readOnly />
-              Dauersenden
+              {t("recording.continuous")}
             </label>
             <label className="ts-options-radio">
               <input type="radio" name="activation" checked readOnly />
-              Automatische Spracherkennung
+              {t("recording.voiceActivation")}
             </label>
             <div className="ts-options-level-wrap">
               <MicLevelBar levelRef={audio.micLevelRef} active={audio.micOn} />
@@ -953,11 +962,11 @@ function AufnahmePanel({ audio }: { audio: AudioSettings }) {
             </div>
             <div className="ts-options-field-row">
               <button onClick={audio.onToggleMicTest} disabled={!audio.micOn}>
-                {audio.micTestOn ? "Test beenden" : "Test starten"}
+                {audio.micTestOn ? t("recording.testStop") : t("recording.testStart")}
               </button>
               <span className={`ts-options-test-dot${audio.micTestOn ? " ts-options-test-dot-on" : ""}`} />
               <label className="ts-options-field-inline">
-                Abschaltverzögerung:
+                {t("recording.hangoverDelay")}
                 <input
                   type="number"
                   min={0}
@@ -966,16 +975,16 @@ function AufnahmePanel({ audio }: { audio: AudioSettings }) {
                   value={audio.vadHangover}
                   onChange={(e) => audio.onVadHangoverChange(Number(e.target.value))}
                 />
-                Sek
+                {t("recording.secondsUnit")}
               </label>
             </div>
           </fieldset>
           <fieldset className="ts-options-fieldset">
-            <legend>Digital Signal Processing</legend>
+            <legend>{t("recording.dsp")}</legend>
             <div className="ts-options-dsp-grid">
               <label className="ts-options-checkbox">
                 <input type="checkbox" disabled readOnly />
-                Typing attenuation
+                {t("recording.typingAttenuation")}
               </label>
               <label className="ts-options-checkbox">
                 <input
@@ -983,7 +992,7 @@ function AufnahmePanel({ audio }: { audio: AudioSettings }) {
                   checked={audio.echoCancellationEnabled}
                   onChange={audio.onToggleEchoCancellation}
                 />
-                Echo Dämpfung
+                {t("recording.echoCancellation")}
               </label>
               <label className="ts-options-checkbox">
                 <input
@@ -991,12 +1000,31 @@ function AufnahmePanel({ audio }: { audio: AudioSettings }) {
                   checked={audio.noiseSuppressionEnabled}
                   onChange={audio.onToggleNoiseSuppression}
                 />
-                Hintergrundgeräusche entfernen
+                {t("recording.noiseSuppression")}
               </label>
             </div>
           </fieldset>
         </div>
       </div>
+    </>
+  );
+}
+
+function AnwendungPanel() {
+  const t = useT();
+  const { langPref, setLangPref } = useLanguage();
+  return (
+    <>
+      <h3>{t("app.title")}</h3>
+      <p className="ts-options-subtitle">{t("app.subtitle")}</p>
+      <label className="ts-options-field">
+        {t("app.language")}
+        <select value={langPref} onChange={(e) => setLangPref(e.target.value as LangPref)}>
+          <option value="auto">{t("app.language.auto")}</option>
+          <option value="de">{t("app.language.de")}</option>
+          <option value="en">{t("app.language.en")}</option>
+        </select>
+      </label>
     </>
   );
 }
@@ -1012,13 +1040,14 @@ function OptionsDialog({
   onClose: () => void;
   audio: AudioSettings;
 }) {
+  const t = useT();
   const active = OPTIONS_SECTIONS.find((s) => s.id === section) ?? OPTIONS_SECTIONS[0];
   return (
     <div className="ts-dialog-backdrop" onClick={onClose}>
       <div className="ts-dialog ts-options-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="ts-dialog-titlebar">
-          <span>Optionen</span>
-          <button onClick={onClose} title="Close">
+          <span>{t("options.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
             ✕
           </button>
         </div>
@@ -1031,27 +1060,29 @@ function OptionsDialog({
                 onClick={() => onSectionChange(s.id)}
               >
                 <span className="ts-options-sidebar-icon">{s.icon}</span>
-                <span>{s.label}</span>
+                <span>{t(`options.section.${s.id}`)}</span>
               </button>
             ))}
           </div>
           <div className="ts-options-content">
-            {active.id === "wiedergabe" ? (
+            {active.id === "anwendung" ? (
+              <AnwendungPanel />
+            ) : active.id === "wiedergabe" ? (
               <WiedergabePanel audio={audio} />
             ) : active.id === "aufnahme" ? (
               <AufnahmePanel audio={audio} />
             ) : (
               <>
-                <h3>{active.label}</h3>
-                <p className="ts-options-placeholder">Diese Einstellungen sind noch nicht implementiert.</p>
+                <h3>{t(`options.section.${active.id}`)}</h3>
+                <p className="ts-options-placeholder">{t("options.notImplemented")}</p>
               </>
             )}
           </div>
         </div>
         <div className="ts-dialog-buttons">
           <div className="ts-dialog-buttons-right">
-            <button onClick={onClose}>OK</button>
-            <button onClick={onClose}>Abbrechen</button>
+            <button onClick={onClose}>{t("options.ok")}</button>
+            <button onClick={onClose}>{t("options.cancel")}</button>
           </div>
         </div>
       </div>
@@ -1059,7 +1090,7 @@ function OptionsDialog({
   );
 }
 
-function App() {
+function AppInner() {
   const [host, setHost] = useState(() => localStorage.getItem(LAST_HOST_KEY) ?? "localhost");
   const [nickname, setNickname] = useState(() => localStorage.getItem(LAST_NICKNAME_KEY) ?? "Claude Code");
   const [serverPassword, setServerPassword] = useState("");
@@ -1751,6 +1782,7 @@ function App() {
   const outputMuted = ownClient?.outputMuted ?? false;
   const displayTalkers =
     selfActive && ownClient ? new Set(talkers).add(ownClient.id) : talkers;
+  const t = useT();
 
   return (
     <div className={`ts-app ts-theme-${theme}`}>
@@ -1760,7 +1792,7 @@ function App() {
             className="ts-menubar-item ts-menubar-item-active"
             onClick={() => setConnectionsMenuOpen((v) => !v)}
           >
-            Verbindungen
+            {t("menu.connections")}
           </span>
           {connectionsMenuOpen && (
             <div className="ts-menu">
@@ -1773,7 +1805,7 @@ function App() {
                 }}
               >
                 <span className="ts-menu-item-icon">🟢</span>
-                <span className="ts-menu-item-label">Verbinden</span>
+                <span className="ts-menu-item-label">{t("menu.connections.connect")}</span>
                 <span className="ts-menu-item-shortcut">Strg+S</span>
               </button>
               <button
@@ -1785,7 +1817,7 @@ function App() {
                 }}
               >
                 <span className="ts-menu-item-icon">🔴</span>
-                <span className="ts-menu-item-label">Aktuelle Verbindung trennen</span>
+                <span className="ts-menu-item-label">{t("menu.connections.disconnectCurrent")}</span>
                 <span className="ts-menu-item-shortcut">Strg+D</span>
               </button>
               <button
@@ -1797,7 +1829,7 @@ function App() {
                 }}
               >
                 <span className="ts-menu-item-icon">❌</span>
-                <span className="ts-menu-item-label">Alle Verbindungen trennen</span>
+                <span className="ts-menu-item-label">{t("menu.connections.disconnectAll")}</span>
               </button>
             </div>
           )}
@@ -1807,18 +1839,18 @@ function App() {
             className="ts-menubar-item ts-menubar-item-active"
             onClick={() => setFavoritesMenuOpen((v) => !v)}
           >
-            Favoriten
+            {t("menu.favorites")}
           </span>
           {favoritesMenuOpen && (
             <div className="ts-menu">
               <button className="ts-menu-item" onClick={openAddFavorite}>
                 <span className="ts-menu-item-icon">⭐</span>
-                <span className="ts-menu-item-label">Zu Favoriten hinzufügen</span>
+                <span className="ts-menu-item-label">{t("menu.favorites.add")}</span>
                 <span className="ts-menu-item-shortcut">Strg+B</span>
               </button>
               <button className="ts-menu-item" onClick={openManageFavorites}>
                 <span className="ts-menu-item-icon">🗂️</span>
-                <span className="ts-menu-item-label">Favoriten verwalten</span>
+                <span className="ts-menu-item-label">{t("menu.favorites.manage")}</span>
               </button>
               {favorites.length > 0 && <div className="ts-menu-separator" />}
               {favorites.map((f) => (
@@ -1838,7 +1870,7 @@ function App() {
             </div>
           )}
         </div>
-        {["Selbst", "Rechte"].map((item) => (
+        {[t("menu.self"), t("menu.rights")].map((item) => (
           <span key={item} className="ts-menubar-item">
             {item}
           </span>
@@ -1848,17 +1880,17 @@ function App() {
             className="ts-menubar-item ts-menubar-item-active"
             onClick={() => setExtrasMenuOpen((v) => !v)}
           >
-            Extras
+            {t("menu.extras")}
           </span>
           {extrasMenuOpen && (
             <div className="ts-menu">
               {[
-                { icon: "🪪", label: "Identitäten", shortcut: "Strg+I" },
-                { icon: "📇", label: "Kontakte", shortcut: "Strg+Umschalt+O" },
-                { icon: "🔗", label: "Gesammelte URLs", shortcut: "Strg+U" },
-                { icon: "📁", label: "Dateitransfers", shortcut: "Strg+T" },
-                { icon: "🧑‍🤝‍🧑", label: "Freund einladen" },
-                { icon: "✉️", label: "Offline Nachrichten", shortcut: "Strg+O" },
+                { icon: "🪪", label: t("menu.extras.identities"), shortcut: "Strg+I" },
+                { icon: "📇", label: t("menu.extras.contacts"), shortcut: "Strg+Umschalt+O" },
+                { icon: "🔗", label: t("menu.extras.collectedUrls"), shortcut: "Strg+U" },
+                { icon: "📁", label: t("menu.extras.fileTransfers"), shortcut: "Strg+T" },
+                { icon: "🧑‍🤝‍🧑", label: t("menu.extras.inviteFriend") },
+                { icon: "✉️", label: t("menu.extras.offlineMessages"), shortcut: "Strg+O" },
               ].map((item) => (
                 <button key={item.label} className="ts-menu-item" disabled>
                   <span className="ts-menu-item-icon">{item.icon}</span>
@@ -1868,9 +1900,9 @@ function App() {
               ))}
               <div className="ts-menu-separator" />
               {[
-                { icon: "🗒️", label: "Whisperlisten", shortcut: "Strg+Umschalt+W" },
-                { icon: "🕓", label: "Whisper Verlauf", shortcut: "Strg+Umschalt+H" },
-                { icon: "📜", label: "Client Protokoll", shortcut: "Strg+L" },
+                { icon: "🗒️", label: t("menu.extras.whisperLists"), shortcut: "Strg+Umschalt+W" },
+                { icon: "🕓", label: t("menu.extras.whisperHistory"), shortcut: "Strg+Umschalt+H" },
+                { icon: "📜", label: t("menu.extras.clientLog"), shortcut: "Strg+L" },
               ].map((item) => (
                 <button key={item.label} className="ts-menu-item" disabled>
                   <span className="ts-menu-item-icon">{item.icon}</span>
@@ -1880,10 +1912,10 @@ function App() {
               ))}
               <div className="ts-menu-separator" />
               {[
-                { icon: "🚫", label: "Bannliste", shortcut: "Strg+Umschalt+B" },
-                { icon: "⚠️", label: "Beschwerdeliste", shortcut: "Strg+Umschalt+C" },
-                { icon: "🔑", label: "ServerQuery Login" },
-                { icon: "📄", label: "Server Protokoll", shortcut: "Strg+Umschalt+L" },
+                { icon: "🚫", label: t("menu.extras.banList"), shortcut: "Strg+Umschalt+B" },
+                { icon: "⚠️", label: t("menu.extras.complaintList"), shortcut: "Strg+Umschalt+C" },
+                { icon: "🔑", label: t("menu.extras.serverQueryLogin") },
+                { icon: "📄", label: t("menu.extras.serverLog"), shortcut: "Strg+Umschalt+L" },
               ].map((item) => (
                 <button key={item.label} className="ts-menu-item" disabled>
                   <span className="ts-menu-item-icon">{item.icon}</span>
@@ -1893,9 +1925,9 @@ function App() {
               ))}
               <div className="ts-menu-separator" />
               {[
-                { icon: "🔴", label: "Aufnahme starten", shortcut: "Strg+Umschalt+R" },
-                { icon: "🔴", label: "Start Multitrack Recording" },
-                { icon: "⏹️", label: "Aufnahme beenden", shortcut: "Strg+Umschalt+T" },
+                { icon: "🔴", label: t("menu.extras.startRecording"), shortcut: "Strg+Umschalt+R" },
+                { icon: "🔴", label: t("menu.extras.startMultitrackRecording") },
+                { icon: "⏹️", label: t("menu.extras.stopRecording"), shortcut: "Strg+Umschalt+T" },
               ].map((item) => (
                 <button key={item.label} className="ts-menu-item" disabled>
                   <span className="ts-menu-item-icon">{item.icon}</span>
@@ -1906,7 +1938,7 @@ function App() {
               <div className="ts-menu-separator" />
               <button className="ts-menu-item" disabled>
                 <span className="ts-menu-item-icon">🟠</span>
-                <span className="ts-menu-item-label">Overwolf installieren</span>
+                <span className="ts-menu-item-label">{t("menu.extras.installOverwolf")}</span>
               </button>
               <div className="ts-menu-separator" />
               <button
@@ -1917,13 +1949,13 @@ function App() {
                 }}
               >
                 <span className="ts-menu-item-icon">⚙️</span>
-                <span className="ts-menu-item-label">Optionen</span>
+                <span className="ts-menu-item-label">{t("menu.extras.options")}</span>
                 <span className="ts-menu-item-shortcut">Alt+P</span>
               </button>
             </div>
           )}
         </div>
-        <span className="ts-menubar-item">Hilfe</span>
+        <span className="ts-menubar-item">{t("menu.help")}</span>
       </div>
 
       <div className="ts-toolbar">
@@ -1933,7 +1965,7 @@ function App() {
               className={`ts-icon-button${isAway ? " ts-away-on" : ""}`}
               onClick={() => sendAway(!isAway, "")}
               disabled={!connected}
-              title={isAway ? "Back online" : "Set away"}
+              title={isAway ? t("toolbar.backOnline") : t("toolbar.setAway")}
             >
               💤
             </button>
@@ -1941,7 +1973,7 @@ function App() {
               className="ts-icon-caret"
               onClick={() => setAwayMenuOpen((v) => !v)}
               disabled={!connected}
-              title="Away options"
+              title={t("toolbar.awayOptions")}
             >
               ▾
             </button>
@@ -1955,7 +1987,7 @@ function App() {
                   }}
                 >
                   <span className="ts-menu-item-icon">💤</span>
-                  <span className="ts-menu-item-label">Global abwesend setzen</span>
+                  <span className="ts-menu-item-label">{t("away.setGlobal")}</span>
                 </button>
                 <button
                   className="ts-menu-item"
@@ -1966,7 +1998,7 @@ function App() {
                   }}
                 >
                   <span className="ts-menu-item-icon">✎</span>
-                  <span className="ts-menu-item-label">Abwesenheit-Status global setzen</span>
+                  <span className="ts-menu-item-label">{t("away.setGlobalStatus")}</span>
                 </button>
                 {awayPresets.length > 0 && <div className="ts-menu-separator" />}
                 {awayPresets.map((preset) => (
@@ -1990,15 +2022,15 @@ function App() {
             onClick={handleToggleMic}
             title={
               !micOn
-                ? "Enable microphone"
+                ? t("toolbar.micEnable")
                 : inputMuted
-                  ? "Unmute microphone"
-                  : "Mute microphone"
+                  ? t("toolbar.micUnmute")
+                  : t("toolbar.micMute")
             }
           >
             {micOn && !inputMuted ? "🎤" : "🔇"}
           </button>
-          <label className="ts-icon-slider" title="Voice activation sensitivity">
+          <label className="ts-icon-slider" title={t("toolbar.vadSensitivity")}>
             🎚️
             <input
               type="range"
@@ -2014,12 +2046,12 @@ function App() {
             className={`ts-icon-button${outputMuted ? " ts-muted-on" : ""}`}
             onClick={handleToggleOutputMuted}
             disabled={!connected}
-            title={outputMuted ? "Unmute sound (undeafen)" : "Mute sound (deafen)"}
+            title={outputMuted ? t("toolbar.unmuteSound") : t("toolbar.muteSound")}
           >
             {outputMuted ? "🔇" : "🔊"}
           </button>
           {hasNativeOutputPicker() ? (
-            <button className="ts-icon-button" onClick={handlePickOutputDevice} title="Choose output device">
+            <button className="ts-icon-button" onClick={handlePickOutputDevice} title={t("toolbar.chooseOutputDevice")}>
               🎧
             </button>
           ) : (
@@ -2030,7 +2062,7 @@ function App() {
                 onChange={(e) => handleOutputDeviceChange(e.target.value)}
                 onFocus={refreshOutputDevices}
               >
-                <option value="">System default</option>
+                <option value="">{t("playback.systemDefault")}</option>
                 {outputDevices.map((d) => (
                   <option key={d.deviceId} value={d.deviceId}>
                     {d.label || `Output ${d.deviceId.slice(0, 6)}`}
@@ -2042,8 +2074,8 @@ function App() {
           <span className="ts-toolbar-sep" />
           <button
             className="ts-icon-button"
-            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-            title="Toggle theme"
+            onClick={() => setTheme((mode) => (mode === "dark" ? "light" : "dark"))}
+            title={t("toolbar.toggleTheme")}
           >
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
@@ -2129,7 +2161,7 @@ function App() {
       {connectError && (
         <div className="ts-connect-error">
           <span>⚠️ {connectError}</span>
-          <button onClick={() => setConnectError(null)} title="Dismiss">
+          <button onClick={() => setConnectError(null)} title={t("connectError.dismiss")}>
             ✕
           </button>
         </div>
@@ -2139,7 +2171,7 @@ function App() {
         <div className="ts-poke-compose-backdrop" onClick={() => setPokeTarget(null)}>
           <div className="ts-poke-compose" onClick={(e) => e.stopPropagation()}>
             <span>
-              👉 Poke <strong>{pokeTarget.name}</strong>
+              👉 {t("poke.title")} <strong>{pokeTarget.name}</strong>
             </span>
             <input
               autoFocus
@@ -2149,10 +2181,10 @@ function App() {
                 if (e.key === "Enter") handleSendPoke();
                 if (e.key === "Escape") setPokeTarget(null);
               }}
-              placeholder="Optional message..."
+              placeholder={t("poke.optionalMessage")}
             />
-            <button onClick={handleSendPoke}>Poke</button>
-            <button onClick={() => setPokeTarget(null)}>Cancel</button>
+            <button onClick={handleSendPoke}>{t("poke.send")}</button>
+            <button onClick={() => setPokeTarget(null)}>{t("poke.cancel")}</button>
           </div>
         </div>
       )}
@@ -2160,9 +2192,9 @@ function App() {
       {pokes.map((poke) => (
         <div key={poke.id} className="ts-poke-notice">
           <span>
-            👉 <strong>{poke.from}</strong> poked you{poke.message ? `: ${poke.message}` : ""}
+            👉 <strong>{poke.from}</strong> {t("poke.pokedYou")}{poke.message ? `: ${poke.message}` : ""}
           </span>
-          <button onClick={() => setPokes((prev) => prev.filter((p) => p.id !== poke.id))} title="Dismiss">
+          <button onClick={() => setPokes((prev) => prev.filter((p) => p.id !== poke.id))} title={t("poke.dismiss")}>
             ✕
           </button>
         </div>
@@ -2194,7 +2226,7 @@ function App() {
                 />
               </>
             ) : (
-              <div className="ts-tree-empty">Not connected</div>
+              <div className="ts-tree-empty">{t("tree.notConnected")}</div>
             )}
           </div>
 
@@ -2241,7 +2273,7 @@ function App() {
                 : pmThreads[activeTab]?.messages.map((entry, i) => (
                     <div key={i} className="ts-chat-line">
                       <span className="ts-chat-from">
-                        {entry.fromSelf ? "You" : pmThreads[activeTab].partnerName}:
+                        {entry.fromSelf ? t("chat.you") : pmThreads[activeTab].partnerName}:
                       </span>{" "}
                       <span>{entry.message}</span>
                     </div>
@@ -2253,13 +2285,13 @@ function App() {
               className={`ts-chat-tab${activeTab === "server" ? " ts-chat-tab-active" : ""}`}
               onClick={() => setActiveTab("server")}
             >
-              Server
+              {t("chat.server")}
             </button>
             <button
               className={`ts-chat-tab${activeTab === "channel" ? " ts-chat-tab-active" : ""}`}
               onClick={() => setActiveTab("channel")}
             >
-              Channel
+              {t("chat.channel")}
             </button>
             {Object.values(pmThreads).map((thread) => (
               <button
@@ -2290,16 +2322,16 @@ function App() {
               disabled={!connected}
               placeholder={
                 !connected
-                  ? "Not connected"
+                  ? t("chat.notConnected")
                   : activeTab === "channel"
-                    ? "Message channel..."
+                    ? t("chat.messageChannel")
                     : activeTab === "server"
-                      ? "Message server..."
-                      : `Message ${pmThreads[activeTab]?.partnerName}...`
+                      ? t("chat.messageServer")
+                      : t("chat.messagePartner", { name: pmThreads[activeTab]?.partnerName ?? "" })
               }
             />
             <button onClick={handleSendChat} disabled={!connected}>
-              Send
+              {t("chat.send")}
             </button>
           </div>
         </div>
@@ -2313,6 +2345,14 @@ function App() {
         ))}
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <LanguageProvider>
+      <AppInner />
+    </LanguageProvider>
   );
 }
 

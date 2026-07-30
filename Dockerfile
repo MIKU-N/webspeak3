@@ -28,6 +28,8 @@ RUN npm run build
 
 # --- Runtime ----------------------------------------------------------------
 FROM node:22-bookworm-slim AS runtime
+LABEL org.opencontainers.image.title="WebSpeak3"
+LABEL org.opencontainers.image.description="Self-hosted web client for TeamSpeak 3 servers"
 WORKDIR /app
 COPY gateway/package*.json ./
 RUN npm ci --omit=dev

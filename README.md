@@ -1,6 +1,6 @@
-# TS Web Client
+# WebSpeak3
 
-Browser-based client for TeamSpeak servers — same idea as the native
+A browser-based web client for TeamSpeak 3 servers — same idea as the native
 installable client, but running in a web browser. The TeamSpeak server side
 stays exactly as-is (a regular TS server); only the client is being
 reimagined.
@@ -51,3 +51,16 @@ See [INSTALL.md](INSTALL.md).
 ## Credits
 
 The vast majority of this project's code was written by [Claude Code](https://claude.com/claude-code) (Anthropic's Claude), working iteratively with the repo owner one feature at a time.
+
+---
+
+### Legal / Disclaimer
+
+**WebSpeak3** is an independent, open-source, self-hosted project and is
+**not** affiliated with, associated with, authorized by, endorsed by, or in
+any way officially connected with TeamSpeak Systems GmbH.
+
+"TeamSpeak", "TS3", and related logos or names are registered trademarks of
+TeamSpeak Systems GmbH. All product and company names are trademarks™ or
+registered® trademarks of their respective holders. Use of them does not
+imply any affiliation with or endorsement by them.

@@ -1,8 +1,8 @@
 {
-  "name": "ts-web-gateway",
+  "name": "webspeak3-gateway",
   "version": "0.1.0",
   "private": true,
-  "description": "Gateway server: bridges browser (WebSocket) clients to a native TeamSpeak server",
+  "description": "WebSpeak3 gateway server: bridges browser (WebSocket) clients to a native TeamSpeak server",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",

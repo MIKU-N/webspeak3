@@ -54,7 +54,7 @@ const server = createServer((req, res) => {
 const wss = new WebSocketServer({ server, path: "/ws" });
 
 server.listen(PORT, () => {
-  console.log(`Gateway listening on http://localhost:${PORT} (WebSocket at /ws)`);
+  console.log(`WebSpeak3 gateway listening on http://localhost:${PORT} (WebSocket at /ws)`);
 });
 
 wss.on("connection", (socket: WebSocket) => {

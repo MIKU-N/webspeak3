@@ -17,14 +17,28 @@ const GATEWAY_URL = import.meta.env.DEV
   ? "ws://localhost:8080"
   : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
 
-const LAST_HOST_KEY = "ts-web-client:last-host";
-const LAST_NICKNAME_KEY = "ts-web-client:last-nickname";
-const FAVORITES_KEY = "ts-web-client:favorites";
-const INPUT_DEVICE_KEY = "ts-web-client:input-device";
-const PLAYBACK_VOLUME_KEY = "ts-web-client:playback-volume";
-const NOISE_SUPPRESSION_KEY = "ts-web-client:noise-suppression";
-const ECHO_CANCELLATION_KEY = "ts-web-client:echo-cancellation";
-const VAD_HANGOVER_KEY = "ts-web-client:vad-hangover";
+// One-time migration from the pre-rename "ts-web-client:*" localStorage
+// namespace so existing users don't lose their favorites/preferences.
+(function migrateLegacyStorageKeys() {
+  const oldPrefix = "ts-web-client:";
+  const newPrefix = "webspeak3:";
+  for (const oldKey of Object.keys(localStorage).filter((k) => k.startsWith(oldPrefix))) {
+    const newKey = newPrefix + oldKey.slice(oldPrefix.length);
+    if (localStorage.getItem(newKey) === null) {
+      localStorage.setItem(newKey, localStorage.getItem(oldKey)!);
+    }
+    localStorage.removeItem(oldKey);
+  }
+})();
+
+const LAST_HOST_KEY = "webspeak3:last-host";
+const LAST_NICKNAME_KEY = "webspeak3:last-nickname";
+const FAVORITES_KEY = "webspeak3:favorites";
+const INPUT_DEVICE_KEY = "webspeak3:input-device";
+const PLAYBACK_VOLUME_KEY = "webspeak3:playback-volume";
+const NOISE_SUPPRESSION_KEY = "webspeak3:noise-suppression";
+const ECHO_CANCELLATION_KEY = "webspeak3:echo-cancellation";
+const VAD_HANGOVER_KEY = "webspeak3:vad-hangover";
 
 function loadBoolPref(key: string, fallback: boolean): boolean {
   const raw = localStorage.getItem(key);
@@ -56,7 +70,7 @@ function loadFavorites(): Favorite[] {
   }
 }
 
-const AWAY_PRESETS_KEY = "ts-web-client:away-presets";
+const AWAY_PRESETS_KEY = "webspeak3:away-presets";
 
 function loadAwayPresets(): string[] {
   try {
@@ -2033,7 +2047,7 @@ function App() {
           >
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
-          <span className="ts-app-title">TS Web Client</span>
+          <span className="ts-app-title">WebSpeak3</span>
         </div>
 
       </div>

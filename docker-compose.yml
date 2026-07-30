@@ -1,11 +1,11 @@
 services:
-  ts-web-client:
+  webspeak3:
     build: .
     restart: unless-stopped
     # Port publishing is deployment-specific (depends on what's free on the
     # host) - set it in a local, gitignored docker-compose.override.yml, e.g.:
     #
     # services:
-    #   ts-web-client:
+    #   webspeak3:
     #     ports:
     #       - "8080:8080"

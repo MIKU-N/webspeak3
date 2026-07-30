@@ -10,6 +10,19 @@ import {
   pickAudioOutputDevice,
 } from "./voice";
 import { LanguageProvider, useLanguage, useT, type LangPref } from "./i18n";
+import {
+  SOUND_EVENTS,
+  clearCustomSound,
+  loadCustomSound,
+  loadSoundsEnabled,
+  loadSoundsVolume,
+  playSound,
+  saveCustomSound,
+  saveSoundsEnabled,
+  saveSoundsVolume,
+  setSoundsOutputDevice,
+  type SoundEventId,
+} from "./sounds";
 
 // In dev, the gateway runs standalone on its own port. In production it's
 // served from the same origin/port as the web app (single container behind a
@@ -777,6 +790,7 @@ const OPTIONS_SECTIONS = [
   { id: "anwendung", icon: "🎧" },
   { id: "wiedergabe", icon: "🔊" },
   { id: "aufnahme", icon: "🎙️" },
+  { id: "sounds", icon: "🔔" },
   { id: "design", icon: "🖌️" },
   { id: "erweiterungen", icon: "🧩" },
   { id: "hotkeys", icon: "⌨️" },
@@ -1029,6 +1043,116 @@ function AnwendungPanel() {
   );
 }
 
+function SoundsPanel() {
+  const t = useT();
+  const [enabled, setEnabled] = useState(() => loadSoundsEnabled());
+  const [volume, setVolume] = useState(() => loadSoundsVolume());
+  const [customNames, setCustomNames] = useState<Partial<Record<SoundEventId, string>>>({});
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadTargetRef = useRef<SoundEventId | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        SOUND_EVENTS.map(async (id) => [id, (await loadCustomSound(id))?.name] as const)
+      );
+      if (cancelled) return;
+      const next: Partial<Record<SoundEventId, string>> = {};
+      for (const [id, name] of entries) if (name) next[id] = name;
+      setCustomNames(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleToggleEnabled = () => {
+    const next = !enabled;
+    setEnabled(next);
+    saveSoundsEnabled(next);
+  };
+
+  const handleVolumeChange = (v: number) => {
+    setVolume(v);
+    saveSoundsVolume(v);
+  };
+
+  const handleUploadClick = (event: SoundEventId) => {
+    uploadTargetRef.current = event;
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const event = uploadTargetRef.current;
+    e.target.value = "";
+    if (!file || !event) return;
+    await saveCustomSound(event, file);
+    setCustomNames((prev) => ({ ...prev, [event]: file.name }));
+  };
+
+  const handleReset = async (event: SoundEventId) => {
+    await clearCustomSound(event);
+    setCustomNames((prev) => {
+      const next = { ...prev };
+      delete next[event];
+      return next;
+    });
+  };
+
+  return (
+    <>
+      <h3>{t("sounds.title")}</h3>
+      <p className="ts-options-subtitle">{t("sounds.subtitle")}</p>
+      <label className="ts-options-field-row">
+        <input type="checkbox" checked={enabled} onChange={handleToggleEnabled} />
+        {t("sounds.enable")}
+      </label>
+      <div className="ts-options-slider-with-value">
+        <span className="ts-options-slider-label">{t("sounds.volume")}</span>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={volume}
+          onChange={(e) => handleVolumeChange(Number(e.target.value))}
+        />
+        <span>{Math.round(volume * 100)}%</span>
+      </div>
+      <table className="ts-options-sounds-table">
+        <tbody>
+          {SOUND_EVENTS.map((eventId) => (
+            <tr key={eventId}>
+              <td>{t(`sounds.event.${eventId}`)}</td>
+              <td className="ts-options-sounds-source">
+                {customNames[eventId] ? t("sounds.custom", { name: customNames[eventId]! }) : t("sounds.default")}
+              </td>
+              <td>
+                <button onClick={() => void playSound(eventId)}>{t("sounds.test")}</button>
+              </td>
+              <td>
+                <button onClick={() => handleUploadClick(eventId)}>{t("sounds.upload")}</button>
+              </td>
+              <td>
+                {customNames[eventId] && <button onClick={() => void handleReset(eventId)}>{t("sounds.reset")}</button>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="audio/*"
+        style={{ display: "none" }}
+        onChange={(e) => void handleFileSelected(e)}
+      />
+    </>
+  );
+}
+
 function OptionsDialog({
   section,
   onSectionChange,
@@ -1071,6 +1195,8 @@ function OptionsDialog({
               <WiedergabePanel audio={audio} />
             ) : active.id === "aufnahme" ? (
               <AufnahmePanel audio={audio} />
+            ) : active.id === "sounds" ? (
+              <SoundsPanel />
             ) : (
               <>
                 <h3>{t(`options.section.${active.id}`)}</h3>
@@ -1165,6 +1291,7 @@ function AppInner() {
   const micCaptureRef = useRef<MicCapture | null>(null);
   const activeTabRef = useRef<ActiveTab>("channel");
   const hasConnectedRef = useRef(false);
+  const previousClientsRef = useRef<ClientInfo[] | null>(null);
   const pokeIdRef = useRef(0);
   const inputMutedRef = useRef(false);
   const outputMutedRef = useRef(false);
@@ -1381,16 +1508,32 @@ function AppInner() {
           setServerBannerUrl(data.serverBannerUrl);
           setSelected({ type: "server" });
           setServerChat((prev) => [...prev, { from: "Server", message: data.welcomeMessage }]);
+          previousClientsRef.current = null;
+          void playSound("connect");
           break;
-        case "channels":
+        case "channels": {
+          const newClients: ClientInfo[] = data.clients;
+          const prevClients = previousClientsRef.current;
+          if (prevClients) {
+            const prevIds = new Set(prevClients.map((c) => c.id));
+            const newIds = new Set(newClients.map((c) => c.id));
+            const joined = newClients.some((c) => !prevIds.has(c.id) && c.name !== connectNickname);
+            const left = prevClients.some((c) => !newIds.has(c.id) && c.name !== connectNickname);
+            if (joined) void playSound("clientJoin");
+            if (left) void playSound("clientLeave");
+          }
+          previousClientsRef.current = newClients;
           setChannels(data.channels);
-          setClients(data.clients);
+          setClients(newClients);
           break;
+        }
         case "chatMessage":
           setChat((prev) => [...prev, { from: data.from, message: data.message }]);
+          if (data.from !== connectNickname) void playSound("message");
           break;
         case "serverMessage":
           setServerChat((prev) => [...prev, { from: data.from, message: data.message }]);
+          if (data.from !== connectNickname) void playSound("message");
           break;
         case "privateMessage":
           setPmThreads((prev) => {
@@ -1411,6 +1554,7 @@ function AppInner() {
               },
             };
           });
+          if (!data.fromSelf) void playSound("message");
           break;
         case "audioOut":
           if (!outputMutedRef.current) audioPlayerRef.current?.playFrame(data.pcm);
@@ -1422,10 +1566,13 @@ function AppInner() {
           const id = ++pokeIdRef.current;
           setPokes((prev) => [...prev, { id, from: data.from, message: data.message }]);
           setTimeout(() => setPokes((prev) => prev.filter((p) => p.id !== id)), 10000);
+          void playSound("poke");
           break;
         }
-        case "disconnected":
+        case "disconnected": {
+          const wasConnected = hasConnectedRef.current;
           hasConnectedRef.current = false;
+          previousClientsRef.current = null;
           setConnecting(false);
           setConnected(false);
           setChannels([]);
@@ -1439,7 +1586,9 @@ function AppInner() {
           setTalkers(new Set());
           stopMic();
           appendLog({ text: `Disconnected: ${data.reason}`, kind: "info" });
+          if (wasConnected) void playSound("disconnect");
           break;
+        }
         case "error":
           if (hasConnectedRef.current) {
             appendLog({ text: data.message, kind: "error" });
@@ -1710,6 +1859,7 @@ function AppInner() {
     setOutputDeviceId(deviceId);
     setOutputDeviceLabel(label || (deviceId ? `Output ${deviceId.slice(0, 6)}` : "System default"));
     await audioPlayerRef.current?.setOutputDevice(deviceId);
+    setSoundsOutputDevice(deviceId);
   };
 
   const handlePickOutputDevice = async () => {

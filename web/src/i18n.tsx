@@ -118,6 +118,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "options.section.sicherheit": "Sicherheit",
     "options.section.nachrichten": "Nachrichten",
     "options.section.meldungen": "Meldungen",
+    "options.section.sounds": "Sounds",
 
     "app.title": "Anwendung",
     "app.subtitle": "Allgemeine Anwendungseinstellungen",
@@ -197,6 +198,22 @@ const translations: Record<Lang, Record<string, string>> = {
 
     "connectError.dismiss": "Schließen",
     "dialog.close": "Schließen",
+
+    "sounds.title": "Sounds",
+    "sounds.subtitle": "Sound-Benachrichtigungen für Ereignisse festlegen",
+    "sounds.enable": "Sounds aktivieren",
+    "sounds.volume": "Lautstärke",
+    "sounds.event.connect": "Verbunden",
+    "sounds.event.disconnect": "Getrennt",
+    "sounds.event.clientJoin": "Client kommt",
+    "sounds.event.clientLeave": "Client geht",
+    "sounds.event.message": "Nachricht empfangen",
+    "sounds.event.poke": "Anstupsen erhalten",
+    "sounds.default": "Standard",
+    "sounds.custom": "Eigene Datei: {name}",
+    "sounds.test": "▶ Testen",
+    "sounds.upload": "Hochladen",
+    "sounds.reset": "Zurücksetzen",
   },
   en: {
     "menu.connections": "Connections",
@@ -306,6 +323,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "options.section.sicherheit": "Security",
     "options.section.nachrichten": "Notifications",
     "options.section.meldungen": "Messages",
+    "options.section.sounds": "Sounds",
 
     "app.title": "Application",
     "app.subtitle": "General application settings",
@@ -385,6 +403,22 @@ const translations: Record<Lang, Record<string, string>> = {
 
     "connectError.dismiss": "Dismiss",
     "dialog.close": "Close",
+
+    "sounds.title": "Sounds",
+    "sounds.subtitle": "Configure sound notifications for events",
+    "sounds.enable": "Enable sounds",
+    "sounds.volume": "Volume",
+    "sounds.event.connect": "Connected",
+    "sounds.event.disconnect": "Disconnected",
+    "sounds.event.clientJoin": "Client joins",
+    "sounds.event.clientLeave": "Client leaves",
+    "sounds.event.message": "Message received",
+    "sounds.event.poke": "Poke received",
+    "sounds.default": "Default",
+    "sounds.custom": "Custom file: {name}",
+    "sounds.test": "▶ Test",
+    "sounds.upload": "Upload",
+    "sounds.reset": "Reset",
   },
 };
 

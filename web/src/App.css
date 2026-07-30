@@ -1011,6 +1011,28 @@
   width: 4em;
 }
 
+.ts-options-sounds-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+  font-size: 12px;
+}
+
+.ts-options-sounds-table td {
+  padding: 0.35rem 0.5rem 0.35rem 0;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+.ts-options-sounds-source {
+  color: var(--text-muted);
+}
+
+.ts-options-sounds-table button {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .ts-options-test-dot {
   width: 10px;
   height: 10px;

@@ -1,11 +1,10 @@
 services:
   webspeak3:
     build: .
+    image: moepchi/webspeak3:latest
+    container_name: webspeak3
     restart: unless-stopped
-    # Port publishing is deployment-specific (depends on what's free on the
-    # host) - set it in a local, gitignored docker-compose.override.yml, e.g.:
-    #
-    # services:
-    #   webspeak3:
-    #     ports:
-    #       - "8080:8080"
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080

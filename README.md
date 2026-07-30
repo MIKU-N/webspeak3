@@ -99,16 +99,24 @@ cd webspeak3
 docker compose up -d
 ```
 
-That's it — the container builds the frontend, gateway, and Rust connector for you. Open `http://localhost:8080` (or your configured port) and connect to any TeamSpeak 3 server.
+That's it — the container builds the frontend, gateway, and Rust connector for you. Open `http://localhost:8080` and connect to any TeamSpeak 3 server.
 
-Port publishing is deployment-specific — set it in a local, gitignored `docker-compose.override.yml`:
+This is what ships in [`docker-compose.yml`](docker-compose.yml):
 
 ```yaml
 services:
   webspeak3:
+    build: .
+    image: moepchi/webspeak3:latest
+    container_name: webspeak3
+    restart: unless-stopped
     ports:
       - "8080:8080"
+    environment:
+      - PORT=8080
 ```
+
+Running on a different host port? Just change the left side of `ports:` (e.g. `"9987:8080"`).
 
 Prefer to skip the build entirely? A prebuilt image is published on [Docker Hub](https://hub.docker.com/r/moepchi/webspeak3):
 

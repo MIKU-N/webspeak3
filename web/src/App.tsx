@@ -2047,6 +2047,7 @@ function App() {
           >
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
+          <img src="/logo.png" alt="" className="ts-app-logo" />
           <span className="ts-app-title">WebSpeak3</span>
         </div>
 

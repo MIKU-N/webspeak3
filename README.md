@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="web/public/logo.png" width="180" alt="WebSpeak3 logo">
+</p>
+
 # WebSpeak3
 
 A browser-based web client for TeamSpeak 3 servers — same idea as the native

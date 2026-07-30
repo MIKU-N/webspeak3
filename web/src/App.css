@@ -208,10 +208,16 @@
   max-width: 160px;
 }
 
+.ts-app-logo {
+  height: 20px;
+  width: 20px;
+  margin-left: auto;
+  border-radius: 4px;
+}
+
 .ts-app-title {
   font-weight: 600;
   color: var(--accent);
-  margin-left: auto;
 }
 
 .ts-toolbar-fields {

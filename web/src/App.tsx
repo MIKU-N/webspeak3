@@ -1092,7 +1092,7 @@ function OptionsDialog({
 
 function AppInner() {
   const [host, setHost] = useState(() => localStorage.getItem(LAST_HOST_KEY) ?? "localhost");
-  const [nickname, setNickname] = useState(() => localStorage.getItem(LAST_NICKNAME_KEY) ?? "Claude Code");
+  const [nickname, setNickname] = useState(() => localStorage.getItem(LAST_NICKNAME_KEY) ?? "");
   const [serverPassword, setServerPassword] = useState("");
   const [channelPassword, setChannelPassword] = useState("");
   const [defaultChannel, setDefaultChannel] = useState("");

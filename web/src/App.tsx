@@ -1267,6 +1267,35 @@ function App() {
     const connectChannelPassword = overrides?.channelPassword ?? channelPassword;
     const connectDefaultChannel = overrides?.defaultChannel ?? defaultChannel;
 
+    // Switching servers while already connected (or mid-connect): tear down the
+    // old socket first and detach its handlers so its async close doesn't later
+    // clobber state that belongs to the new connection.
+    const previousSocket = socketRef.current;
+    if (previousSocket) {
+      previousSocket.onopen = null;
+      previousSocket.onmessage = null;
+      previousSocket.onerror = null;
+      previousSocket.onclose = null;
+      if (previousSocket.readyState === WebSocket.OPEN || previousSocket.readyState === WebSocket.CONNECTING) {
+        previousSocket.close();
+      }
+      stopMic();
+      audioPlayerRef.current?.dispose();
+      audioPlayerRef.current = null;
+      audioContextRef.current?.close();
+      audioContextRef.current = null;
+      setConnected(false);
+      setChannels([]);
+      setClients([]);
+      setSelected(null);
+      setChat([]);
+      setServerChat([]);
+      setPmThreads({});
+      setPokes([]);
+      setActiveTab("channel");
+      setTalkers(new Set());
+    }
+
     hasConnectedRef.current = false;
     setConnecting(true);
     setConnectError(null);
@@ -1782,7 +1811,7 @@ function App() {
                 <button
                   key={f.id}
                   className="ts-menu-item"
-                  disabled={connected || connecting}
+                  disabled={connecting}
                   onClick={() => {
                     connectToFavorite(f);
                     setFavoritesMenuOpen(false);

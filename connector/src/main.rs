@@ -16,7 +16,7 @@ use tsclientlib::messages::c2s::{OutClientPokeRequestPart, OutSendTextMessagePar
 use tsclientlib::prelude::*;
 use tsclientlib::{
 	data, ChannelId, ClientId, Connection, DisconnectOptions, MaxClients, MessageHandle,
-	MessageTarget, StreamItem, TextMessageTargetMode,
+	MessageTarget, Reason, StreamItem, TextMessageTargetMode,
 };
 use tsproto_packets::packets::{AudioData, CodecType, OutAudio};
 
@@ -321,8 +321,14 @@ async fn run(args: Args) -> Result<()> {
 			LoopOutcome::StdinLine(line) => match line {
 				Ok(Some(l)) => {
 					let l = l.trim();
-					if l == "disconnect" {
-						con.disconnect(DisconnectOptions::new())?;
+					if l == "disconnect" || l.starts_with("disconnect ") {
+						let message = l.strip_prefix("disconnect").unwrap_or("").trim();
+						let options = if message.is_empty() {
+							DisconnectOptions::new()
+						} else {
+							DisconnectOptions::new().reason(Reason::Clientdisconnect).message(message)
+						};
+						con.disconnect(options)?;
 						con.events().for_each(|_| future::ready(())).await;
 						emit(&Event::Disconnected { reason: "client requested".into() });
 						break;

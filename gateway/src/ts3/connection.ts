@@ -245,9 +245,10 @@ export class Ts3Connection {
     this.child?.stdin.write(`muteoutput ${muted ? "1" : "0"}\n`);
   }
 
-  async disconnect(): Promise<void> {
+  async disconnect(message = ""): Promise<void> {
     if (this.child && !this.child.killed) {
-      this.child.stdin.write("disconnect\n");
+      const sanitized = message.replace(/[\r\n]+/g, " ").trim();
+      this.child.stdin.write(`disconnect ${sanitized}\n`);
       this.child.stdin.end();
     }
     this.listeners.clear();

@@ -87,14 +87,36 @@ function loadFavorites(): Favorite[] {
 }
 
 const AWAY_PRESETS_KEY = "webspeak3:away-presets";
+const DISCONNECT_MESSAGE_KEY = "webspeak3:disconnect-message";
 
-function loadAwayPresets(): string[] {
+interface MessagePreset {
+  name: string;
+  message: string;
+}
+
+function loadAwayPresets(): MessagePreset[] {
   try {
     const raw = localStorage.getItem(AWAY_PRESETS_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    // Older versions stored presets as plain strings (name == message) - migrate on read.
+    return parsed.map((p) => (typeof p === "string" ? { name: p, message: p } : (p as MessagePreset)));
   } catch {
     return [];
   }
+}
+
+function saveAwayPresets(presets: MessagePreset[]): void {
+  localStorage.setItem(AWAY_PRESETS_KEY, JSON.stringify(presets));
+}
+
+function loadDisconnectMessage(): string {
+  return localStorage.getItem(DISCONNECT_MESSAGE_KEY) ?? "";
+}
+
+function saveDisconnectMessage(message: string): void {
+  localStorage.setItem(DISCONNECT_MESSAGE_KEY, message);
 }
 
 type LogEntry = { text: string; kind: "info" | "error" };
@@ -730,7 +752,7 @@ function AwayDialog({
   onCancel,
 }: {
   message: string;
-  presets: string[];
+  presets: MessagePreset[];
   onMessageChange: (v: string) => void;
   onOk: () => void;
   onSaveTemplate: () => void;
@@ -759,8 +781,8 @@ function AwayDialog({
               >
                 <option value="">{t("away.dialog.none")}</option>
                 {presets.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
+                  <option key={p.name} value={p.message}>
+                    {p.name}
                   </option>
                 ))}
               </select>
@@ -1172,6 +1194,97 @@ function SoundsPanel() {
   );
 }
 
+function NachrichtenPanel() {
+  const t = useT();
+  const [presets, setPresets] = useState<MessagePreset[]>(() => loadAwayPresets());
+  const [disconnectMessage, setDisconnectMessageState] = useState(() => loadDisconnectMessage());
+  const [newName, setNewName] = useState("");
+  const [newMessage, setNewMessage] = useState("");
+
+  const handleDisconnectMessageChange = (v: string) => {
+    setDisconnectMessageState(v);
+    saveDisconnectMessage(v);
+  };
+
+  const handleAdd = () => {
+    const name = newName.trim();
+    const message = newMessage.trim();
+    if (!name || !message) return;
+    const next = [...presets, { name, message }];
+    setPresets(next);
+    saveAwayPresets(next);
+    setNewName("");
+    setNewMessage("");
+  };
+
+  const handleDelete = (index: number) => {
+    const next = presets.filter((_, i) => i !== index);
+    setPresets(next);
+    saveAwayPresets(next);
+  };
+
+  return (
+    <>
+      <h3>{t("nachrichten.title")}</h3>
+      <p className="ts-options-subtitle">{t("nachrichten.subtitle")}</p>
+      <label className="ts-dialog-field">
+        {t("nachrichten.disconnectMessage")}
+        <input
+          value={disconnectMessage}
+          onChange={(e) => handleDisconnectMessageChange(e.target.value)}
+          placeholder={t("nachrichten.disconnectMessagePlaceholder")}
+        />
+      </label>
+      <h4>{t("nachrichten.presetsTitle")}</h4>
+      <table className="ts-options-sounds-table">
+        <thead>
+          <tr>
+            <th>{t("nachrichten.type")}</th>
+            <th>{t("nachrichten.templateName")}</th>
+            <th>{t("nachrichten.message")}</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {presets.map((preset, index) => (
+            <tr key={`${preset.name}-${index}`}>
+              <td>{t("nachrichten.type.away")}</td>
+              <td>{preset.name}</td>
+              <td>{preset.message}</td>
+              <td>
+                <button onClick={() => handleDelete(index)}>{t("nachrichten.delete")}</button>
+              </td>
+            </tr>
+          ))}
+          <tr>
+            <td>{t("nachrichten.type.away")}</td>
+            <td>
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder={t("nachrichten.templateName")}
+              />
+            </td>
+            <td>
+              <input
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder={t("nachrichten.message")}
+                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+              />
+            </td>
+            <td>
+              <button onClick={handleAdd} disabled={!newName.trim() || !newMessage.trim()}>
+                {t("nachrichten.add")}
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </>
+  );
+}
+
 function OptionsDialog({
   section,
   onSectionChange,
@@ -1216,6 +1329,8 @@ function OptionsDialog({
               <AufnahmePanel audio={audio} />
             ) : active.id === "sounds" ? (
               <SoundsPanel />
+            ) : active.id === "nachrichten" ? (
+              <NachrichtenPanel />
             ) : (
               <>
                 <h3>{t(`options.section.${active.id}`)}</h3>
@@ -1295,7 +1410,7 @@ function AppInner() {
   const [awayMenuOpen, setAwayMenuOpen] = useState(false);
   const [awayDialogOpen, setAwayDialogOpen] = useState(false);
   const [awayDialogMessage, setAwayDialogMessage] = useState("");
-  const [awayPresets, setAwayPresets] = useState<string[]>(() => loadAwayPresets());
+  const [awayPresets, setAwayPresets] = useState<MessagePreset[]>(() => loadAwayPresets());
   const [extrasMenuOpen, setExtrasMenuOpen] = useState(false);
   const [optionsDialogOpen, setOptionsDialogOpen] = useState(false);
   const [optionsSection, setOptionsSection] = useState<string>(OPTIONS_SECTIONS[0].id);
@@ -1641,7 +1756,15 @@ function AppInner() {
     };
   };
 
-  const handleDisconnect = () => socketRef.current?.close();
+  const handleDisconnect = () => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    const message = loadDisconnectMessage();
+    if (message && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "disconnect", message }));
+    }
+    socket.close();
+  };
 
   const connectToFavorite = (f: Favorite) => {
     setHost(f.host);
@@ -1690,9 +1813,9 @@ function AppInner() {
     const trimmed = awayDialogMessage.trim();
     if (!trimmed) return;
     setAwayPresets((prev) => {
-      if (prev.includes(trimmed)) return prev;
-      const next = [...prev, trimmed];
-      localStorage.setItem(AWAY_PRESETS_KEY, JSON.stringify(next));
+      if (prev.some((p) => p.message === trimmed)) return prev;
+      const next = [...prev, { name: trimmed, message: trimmed }];
+      saveAwayPresets(next);
       return next;
     });
     setAwayDialogOpen(false);
@@ -2140,7 +2263,10 @@ function AppInner() {
             </button>
             <button
               className="ts-icon-caret"
-              onClick={() => setAwayMenuOpen((v) => !v)}
+              onClick={() => {
+                setAwayPresets(loadAwayPresets());
+                setAwayMenuOpen((v) => !v);
+              }}
               disabled={!connected}
               title={t("toolbar.awayOptions")}
             >
@@ -2172,14 +2298,14 @@ function AppInner() {
                 {awayPresets.length > 0 && <div className="ts-menu-separator" />}
                 {awayPresets.map((preset) => (
                   <button
-                    key={preset}
+                    key={preset.name}
                     className="ts-menu-item"
                     onClick={() => {
-                      sendAway(true, preset);
+                      sendAway(true, preset.message);
                       setAwayMenuOpen(false);
                     }}
                   >
-                    <span className="ts-menu-item-label">{preset}</span>
+                    <span className="ts-menu-item-label">{preset.name}</span>
                   </button>
                 ))}
               </div>

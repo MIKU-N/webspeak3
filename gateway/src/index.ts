@@ -113,6 +113,10 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.setOutputMuted(msg.muted);
         break;
       }
+      case "disconnect": {
+        await connection?.disconnect(msg.message ?? "");
+        break;
+      }
       default:
         socket.send(
           JSON.stringify({ type: "error", message: `Unknown message type: ${msg.type}` })

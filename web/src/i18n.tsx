@@ -215,6 +215,18 @@ const translations: Record<Lang, Record<string, string>> = {
     "sounds.test": "▶ Testen",
     "sounds.upload": "Hochladen",
     "sounds.reset": "Zurücksetzen",
+
+    "nachrichten.title": "Nachrichten",
+    "nachrichten.subtitle": "Nachrichten anpassen",
+    "nachrichten.disconnectMessage": "Verbindung trennen:",
+    "nachrichten.disconnectMessagePlaceholder": "verlassen",
+    "nachrichten.presetsTitle": "Voreingestellte Nachrichten",
+    "nachrichten.type": "Typ",
+    "nachrichten.type.away": "Abwesend",
+    "nachrichten.templateName": "Vorlagenname",
+    "nachrichten.message": "Nachricht",
+    "nachrichten.add": "Hinzufügen",
+    "nachrichten.delete": "Löschen",
   },
   en: {
     "menu.connections": "Connections",
@@ -322,8 +334,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "options.section.downloads": "Downloads",
     "options.section.chat": "Chat",
     "options.section.sicherheit": "Security",
-    "options.section.nachrichten": "Notifications",
-    "options.section.meldungen": "Messages",
+    "options.section.nachrichten": "Messages",
+    "options.section.meldungen": "Notifications",
     "options.section.sounds": "Sounds",
 
     "app.title": "Application",
@@ -421,6 +433,18 @@ const translations: Record<Lang, Record<string, string>> = {
     "sounds.test": "▶ Test",
     "sounds.upload": "Upload",
     "sounds.reset": "Reset",
+
+    "nachrichten.title": "Messages",
+    "nachrichten.subtitle": "Customize messages",
+    "nachrichten.disconnectMessage": "Disconnect:",
+    "nachrichten.disconnectMessagePlaceholder": "leaving",
+    "nachrichten.presetsTitle": "Preset messages",
+    "nachrichten.type": "Type",
+    "nachrichten.type.away": "Away",
+    "nachrichten.templateName": "Template name",
+    "nachrichten.message": "Message",
+    "nachrichten.add": "Add",
+    "nachrichten.delete": "Delete",
   },
 };
 

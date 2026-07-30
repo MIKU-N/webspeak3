@@ -91,12 +91,11 @@ Browser (web/)  <--WebSocket-->  Gateway (gateway/)  <--stdin/stdout JSON-->  Ru
 
 ### 🐳 Docker (recommended)
 
-Clone the repo (the Rust connector depends on a git submodule, so pull it in too) and spin up the whole stack with Docker Compose:
+Clone the repo (the Rust connector depends on a git submodule, so pull it in too):
 
 ```bash
 git clone --recurse-submodules https://github.com/Moepchi/webspeak3.git
 cd webspeak3
-docker compose up -d
 ```
 
 This is what ships in [`docker-compose.yml`](docker-compose.yml):

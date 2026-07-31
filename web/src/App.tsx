@@ -1393,7 +1393,6 @@ function AppInner() {
   const [vadHangover, setVadHangover] = useState(() => loadNumberPref(VAD_HANGOVER_KEY, 0.3));
   const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
   const [outputDeviceId, setOutputDeviceId] = useState("");
-  const [outputDeviceLabel, setOutputDeviceLabel] = useState("System default");
   const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
   const [inputDeviceId, setInputDeviceId] = useState(() => localStorage.getItem(INPUT_DEVICE_KEY) ?? "");
   const [playbackVolume, setPlaybackVolume] = useState(() => loadNumberPref(PLAYBACK_VOLUME_KEY, 1));
@@ -1476,7 +1475,7 @@ function AppInner() {
 
   useEffect(() => {
     activeTabRef.current = activeTab;
-    if (activeTab !== "channel") {
+    if (typeof activeTab === "number") {
       setPmThreads((prev) => {
         const thread = prev[activeTab];
         if (!thread || !thread.unread) return prev;
@@ -2006,9 +2005,8 @@ function AppInner() {
     socketRef.current?.send(JSON.stringify({ type: "setOutputMuted", muted: !outputMutedRef.current }));
   };
 
-  const handleOutputDeviceChange = async (deviceId: string, label?: string) => {
+  const handleOutputDeviceChange = async (deviceId: string) => {
     setOutputDeviceId(deviceId);
-    setOutputDeviceLabel(label || (deviceId ? `Output ${deviceId.slice(0, 6)}` : "System default"));
     await audioPlayerRef.current?.setOutputDevice(deviceId);
     setSoundsOutputDevice(deviceId);
   };
@@ -2016,7 +2014,7 @@ function AppInner() {
   const handlePickOutputDevice = async () => {
     try {
       const device = await pickAudioOutputDevice();
-      if (device) await handleOutputDeviceChange(device.deviceId, device.label);
+      if (device) await handleOutputDeviceChange(device.deviceId);
     } catch (error) {
       appendLog({ text: `Output device error: ${(error as Error).message}`, kind: "error" });
     }

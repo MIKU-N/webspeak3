@@ -61,13 +61,12 @@ export class MicCapture {
   private deviceId?: string;
   private echoCancellation: boolean;
   private noiseSuppression: boolean;
+  private context: AudioContext;
   threshold: number;
   hangoverSeconds: number;
 
-  constructor(
-    private context: AudioContext,
-    options: MicCaptureOptions
-  ) {
+  constructor(context: AudioContext, options: MicCaptureOptions) {
+    this.context = context;
     this.onFrame = options.onFrame;
     this.onActivity = options.onActivity;
     this.onLevel = options.onLevel;
@@ -222,8 +221,10 @@ export class AudioPlayer {
   private destination: MediaStreamAudioDestinationNode;
   private element: SinkableElement;
   private gain: GainNode;
+  private context: AudioContext;
 
-  constructor(private context: AudioContext) {
+  constructor(context: AudioContext) {
+    this.context = context;
     this.destination = context.createMediaStreamDestination();
     this.gain = context.createGain();
     this.gain.connect(this.destination);

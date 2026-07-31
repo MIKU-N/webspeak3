@@ -2391,7 +2391,7 @@ function AppInner() {
           >
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
-          <img src="/logo.png" alt="" className="ts-app-logo" />
+          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" className="ts-app-logo" />
           <span className="ts-app-title">WebSpeak3</span>
         </div>
 

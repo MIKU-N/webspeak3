@@ -1,0 +1,42 @@
+name: Feature Request
+description: Suggest an idea or improvement for WebSpeak3
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! Note that some native TeamSpeak 3 client features (myTeamSpeak integration,
+        badges, plugins) are intentionally out of scope — see the README for details.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Is this related to something that's currently missing or annoying?
+      placeholder: e.g. I can't send a targeted whisper to specific clients like in the native client.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like to see happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds or alternative approaches you've thought of?
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Screenshots of the native client, links, or other context that helps explain the request.
+    validations:
+      required: false

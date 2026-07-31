@@ -10,6 +10,7 @@ import {
   pickAudioOutputDevice,
 } from "./voice";
 import { LanguageProvider, useLanguage, useT, type LangPref } from "./i18n";
+import { DEMO_HOST, DEMO_MODE, DemoSocket } from "./demoMode";
 import {
   SOUND_EVENTS,
   clearCustomSound,
@@ -1351,8 +1352,10 @@ function OptionsDialog({
 }
 
 function AppInner() {
-  const [host, setHost] = useState(() => localStorage.getItem(LAST_HOST_KEY) ?? "localhost");
-  const [nickname, setNickname] = useState(() => localStorage.getItem(LAST_NICKNAME_KEY) ?? "");
+  const [host, setHost] = useState(() => localStorage.getItem(LAST_HOST_KEY) ?? (DEMO_MODE ? DEMO_HOST : "localhost"));
+  const [nickname, setNickname] = useState(
+    () => localStorage.getItem(LAST_NICKNAME_KEY) ?? (DEMO_MODE ? "Guest" : "")
+  );
   const [serverPassword, setServerPassword] = useState("");
   const [channelPassword, setChannelPassword] = useState("");
   const [defaultChannel, setDefaultChannel] = useState("");
@@ -1414,7 +1417,7 @@ function AppInner() {
   const [extrasMenuOpen, setExtrasMenuOpen] = useState(false);
   const [optionsDialogOpen, setOptionsDialogOpen] = useState(false);
   const [optionsSection, setOptionsSection] = useState<string>(OPTIONS_SECTIONS[0].id);
-  const socketRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<WebSocket | DemoSocket | null>(null);
   const connectionsMenuRef = useRef<HTMLDivElement | null>(null);
   const favoritesMenuRef = useRef<HTMLDivElement | null>(null);
   const awayMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1425,6 +1428,10 @@ function AppInner() {
   const micCaptureRef = useRef<MicCapture | null>(null);
   const activeTabRef = useRef<ActiveTab>("channel");
   const hasConnectedRef = useRef(false);
+  // Set when a "disconnected" event is received, so the socket's onclose
+  // handler (which fires shortly after, on its own close handshake) can tell
+  // a clean disconnect apart from the socket dying before ever connecting.
+  const cleanDisconnectRef = useRef(false);
   const previousClientsRef = useRef<ClientInfo[] | null>(null);
   const pokeIdRef = useRef(0);
   const inputMutedRef = useRef(false);
@@ -1609,7 +1616,7 @@ function AppInner() {
 
     ensureAudioContext();
 
-    const socket = new WebSocket(GATEWAY_URL);
+    const socket = DEMO_MODE ? new DemoSocket() : new WebSocket(GATEWAY_URL);
     socketRef.current = socket;
 
     socket.onopen = () => {
@@ -1706,6 +1713,7 @@ function AppInner() {
         case "disconnected": {
           const wasConnected = hasConnectedRef.current;
           hasConnectedRef.current = false;
+          cleanDisconnectRef.current = true;
           previousClientsRef.current = null;
           setConnecting(false);
           setConnected(false);
@@ -1743,10 +1751,11 @@ function AppInner() {
       }
     };
     socket.onclose = () => {
-      if (!hasConnectedRef.current) {
+      if (!hasConnectedRef.current && !cleanDisconnectRef.current) {
         setConnecting(false);
         setConnectError((prev) => prev ?? "Connection closed before the server responded");
       }
+      cleanDisconnectRef.current = false;
       setConnected(false);
       stopMic();
       audioPlayerRef.current?.dispose();
@@ -2078,6 +2087,14 @@ function AppInner() {
 
   return (
     <div className={`ts-app ts-theme-${theme}`}>
+      {DEMO_MODE && (
+        <div className="ts-demo-banner">
+          Demo mode — simulated data only, no real TeamSpeak server involved.{" "}
+          <a href="https://github.com/Moepchi/webspeak3" target="_blank" rel="noreferrer">
+            Get WebSpeak3
+          </a>
+        </div>
+      )}
       <div className="ts-menubar">
         <div className="ts-menubar-dropdown" ref={connectionsMenuRef}>
           <span

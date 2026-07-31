@@ -52,6 +52,22 @@
   color-scheme: dark;
 }
 
+/* Demo mode banner */
+
+.ts-demo-banner {
+  flex-shrink: 0;
+  padding: 0.35rem 0.75rem;
+  background: #7a4d00;
+  color: #fff;
+  font-size: 12px;
+  text-align: center;
+}
+
+.ts-demo-banner a {
+  color: #fff;
+  text-decoration: underline;
+}
+
 /* Toolbar */
 
 .ts-menubar {

@@ -17,10 +17,13 @@
 </p>
 
 <p align="center">
+  <a href="https://moepchi.github.io/webspeak3/">🕹️ Live Demo</a> ·
   <a href="#-installation">🚀 Quick Start</a> ·
   <a href="#-installation">📖 Installation</a> ·
   <a href="https://github.com/Moepchi/webspeak3/issues">🐛 Report Bug</a>
 </p>
+
+> The [live demo](https://moepchi.github.io/webspeak3/) runs entirely in your browser with simulated data — no real TeamSpeak server involved. It's there to show the UI, not the real connection.
 
 ---
 

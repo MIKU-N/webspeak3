@@ -600,6 +600,11 @@
   color: var(--accent);
 }
 
+.ts-chat-line-log {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .ts-chat-input-row {
   flex-shrink: 0;
   display: flex;

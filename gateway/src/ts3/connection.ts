@@ -33,6 +33,17 @@ export interface ClientInfo {
   isChannelCommander: boolean;
 }
 
+export type ServerLogEntry =
+  | { kind: "clientJoin"; client: string; channel: string }
+  | { kind: "clientLeave"; client: string }
+  | { kind: "clientChannelSwitch"; client: string; fromChannel: string; toChannel: string }
+  | { kind: "clientChannelGroupAssigned"; client: string; group: string }
+  | { kind: "channelCreated"; channel: string }
+  | { kind: "channelDeleted"; channel: string }
+  | { kind: "channelEdited"; channel: string }
+  | { kind: "serverEdited" }
+  | { kind: "permissionError"; action: string };
+
 export type Ts3ConnectionEvent =
   | {
       type: "connected";
@@ -51,7 +62,8 @@ export type Ts3ConnectionEvent =
   | { type: "audioOut"; pcm: string }
   | { type: "talkers"; clients: number[] }
   | { type: "disconnected"; reason: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | ({ type: "serverLog" } & ServerLogEntry);
 
 export interface Ts3ConnectOptions {
   host: string;
@@ -134,7 +146,8 @@ export class Ts3Connection {
           | { type: "audioOut"; pcm: string }
           | { type: "talkers"; clients: number[] }
           | { type: "disconnected"; reason: string }
-          | { type: "error"; message: string };
+          | { type: "error"; message: string }
+          | ({ type: "serverLog" } & ServerLogEntry);
 
         if (event.type === "connected") {
           this.emit({

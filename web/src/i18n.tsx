@@ -189,6 +189,16 @@ const translations: Record<Lang, Record<string, string>> = {
     "chat.send": "Senden",
     "chat.you": "Du",
 
+    "serverLog.clientJoin": "{client} loggte sich in Channel \"{channel}\" ein",
+    "serverLog.clientLeave": "{client} hat die Verbindung getrennt (Verlassen)",
+    "serverLog.clientChannelSwitch": "{client} ging von Channel \"{fromChannel}\" in \"{toChannel}\"",
+    "serverLog.clientChannelGroupAssigned": "Die Channel-Gruppe \"{group}\" wurde {client} zugewiesen",
+    "serverLog.channelCreated": "Channel \"{channel}\" wurde erstellt",
+    "serverLog.channelDeleted": "Channel \"{channel}\" wurde gelöscht",
+    "serverLog.channelEdited": "Channel \"{channel}\" wurde bearbeitet",
+    "serverLog.serverEdited": "Die Servereinstellungen wurden geändert",
+    "serverLog.permissionError": "Fehlende Berechtigung: {action}",
+
     "poke.title": "Anstupsen",
     "poke.optionalMessage": "Optionale Nachricht...",
     "poke.send": "Anstupsen",
@@ -406,6 +416,16 @@ const translations: Record<Lang, Record<string, string>> = {
     "chat.messagePartner": "Message {name}...",
     "chat.send": "Send",
     "chat.you": "You",
+
+    "serverLog.clientJoin": "{client} entered channel \"{channel}\"",
+    "serverLog.clientLeave": "{client} disconnected (Left)",
+    "serverLog.clientChannelSwitch": "{client} moved from channel \"{fromChannel}\" to \"{toChannel}\"",
+    "serverLog.clientChannelGroupAssigned": "Channel group \"{group}\" was assigned to {client}",
+    "serverLog.channelCreated": "Channel \"{channel}\" was created",
+    "serverLog.channelDeleted": "Channel \"{channel}\" was deleted",
+    "serverLog.channelEdited": "Channel \"{channel}\" was edited",
+    "serverLog.serverEdited": "Server settings were changed",
+    "serverLog.permissionError": "Missing permission: {action}",
 
     "poke.title": "Poke",
     "poke.optionalMessage": "Optional message...",

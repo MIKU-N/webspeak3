@@ -371,6 +371,9 @@ function InfoPanel({
 interface ChatEntry {
   from: string;
   message: string;
+  /** Set for server-log notifications (join/leave/switch/etc.) so they render
+   *  without a "from:" prefix, like the native client's server tab. */
+  isLog?: boolean;
 }
 
 interface PmMessage {
@@ -1709,6 +1712,44 @@ function AppInner() {
           void playSound("poke");
           break;
         }
+        case "serverLog": {
+          let message: string;
+          switch (data.kind) {
+            case "clientJoin":
+              message = t("serverLog.clientJoin", { client: data.client, channel: data.channel });
+              break;
+            case "clientLeave":
+              message = t("serverLog.clientLeave", { client: data.client });
+              break;
+            case "clientChannelSwitch":
+              message = t("serverLog.clientChannelSwitch", {
+                client: data.client,
+                fromChannel: data.fromChannel,
+                toChannel: data.toChannel,
+              });
+              break;
+            case "clientChannelGroupAssigned":
+              message = t("serverLog.clientChannelGroupAssigned", { client: data.client, group: data.group });
+              break;
+            case "channelCreated":
+              message = t("serverLog.channelCreated", { channel: data.channel });
+              break;
+            case "channelDeleted":
+              message = t("serverLog.channelDeleted", { channel: data.channel });
+              break;
+            case "channelEdited":
+              message = t("serverLog.channelEdited", { channel: data.channel });
+              break;
+            case "serverEdited":
+              message = t("serverLog.serverEdited");
+              break;
+            case "permissionError":
+              message = t("serverLog.permissionError", { action: data.action });
+              break;
+          }
+          setServerChat((prev) => [...prev, { from: "", message, isLog: true }]);
+          break;
+        }
         case "disconnected": {
           const wasConnected = hasConnectedRef.current;
           hasConnectedRef.current = false;
@@ -2575,11 +2616,17 @@ function AppInner() {
                   </div>
                 ))
               : activeTab === "server"
-                ? serverChat.map((entry, i) => (
-                    <div key={i} className="ts-chat-line">
-                      <span className="ts-chat-from">{entry.from}:</span> <span>{entry.message}</span>
-                    </div>
-                  ))
+                ? serverChat.map((entry, i) =>
+                    entry.isLog ? (
+                      <div key={i} className="ts-chat-line ts-chat-line-log">
+                        <span>{entry.message}</span>
+                      </div>
+                    ) : (
+                      <div key={i} className="ts-chat-line">
+                        <span className="ts-chat-from">{entry.from}:</span> <span>{entry.message}</span>
+                      </div>
+                    )
+                  )
                 : pmThreads[activeTab]?.messages.map((entry, i) => (
                     <div key={i} className="ts-chat-line">
                       <span className="ts-chat-from">

@@ -121,11 +121,21 @@ export class DemoSocket {
             welcomeMessage: "This is a simulated demo - no real TeamSpeak server is involved. Connect with any name/address you like.",
           });
           this.after(150, () => this.sendChannels(nickname));
+          this.scriptServerLog(nickname);
         });
         break;
       }
       case "switchChannel": {
+        const fromChannel = this.channelName(this.selfChannel);
         this.selfChannel = msg.channelId;
+        const toChannel = this.channelName(this.selfChannel);
+        this.emit({
+          type: "serverLog",
+          kind: "clientChannelSwitch",
+          client: this.lastNickname,
+          fromChannel,
+          toChannel,
+        });
         this.after(120, () => this.sendChannels(this.lastNickname));
         break;
       }
@@ -166,6 +176,35 @@ export class DemoSocket {
   }
 
   private lastNickname = "Guest";
+
+  private channelName(id: number): string {
+    return DEMO_CHANNELS.find((c) => c.id === id)?.name ?? "";
+  }
+
+  /** A short, scripted burst of Server-tab log lines so the feature is visible
+   *  in the demo without needing a second real user to trigger them. */
+  private scriptServerLog(nickname: string) {
+    this.after(2500, () =>
+      this.emit({ type: "serverLog", kind: "clientJoin", client: "Sam", channel: this.channelName(2) })
+    );
+    this.after(5000, () =>
+      this.emit({
+        type: "serverLog",
+        kind: "clientChannelSwitch",
+        client: "Jordan",
+        fromChannel: this.channelName(2),
+        toChannel: this.channelName(1),
+      })
+    );
+    this.after(7500, () =>
+      this.emit({
+        type: "serverLog",
+        kind: "clientChannelGroupAssigned",
+        client: nickname,
+        group: "Guest",
+      })
+    );
+  }
 
   private sendChannels(nickname: string) {
     this.lastNickname = nickname;

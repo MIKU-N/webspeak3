@@ -11,7 +11,7 @@ use serde::Serialize;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use tsclientlib::audio::AudioHandler;
-use tsclientlib::events::Event as BookEvent;
+use tsclientlib::events::{Event as BookEvent, PropertyId, PropertyValue};
 use tsclientlib::messages::c2s::{OutClientPokeRequestPart, OutSendTextMessagePart};
 use tsclientlib::prelude::*;
 use tsclientlib::{
@@ -70,6 +70,26 @@ struct ClientInfo {
 	is_channel_commander: bool,
 }
 
+/// Human-facing entries for the Server tab's log-style notifications
+/// (client join/leave/switch, channel group assignment, channel/server
+/// changes, own permission errors) - mirrors what the native TS3 client
+/// shows inline in the server chat. `rename_all = "camelCase"` covers both
+/// the `kind` tag values and field names, so this needs no remapping on the
+/// gateway side (unlike the snake_case variants below).
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum ServerLogEntry {
+	ClientJoin { client: String, channel: String },
+	ClientLeave { client: String },
+	ClientChannelSwitch { client: String, from_channel: String, to_channel: String },
+	ClientChannelGroupAssigned { client: String, group: String },
+	ChannelCreated { channel: String },
+	ChannelDeleted { channel: String },
+	ChannelEdited { channel: String },
+	ServerEdited,
+	PermissionError { action: String },
+}
+
 #[derive(Serialize)]
 #[serde(tag = "type")]
 enum Event {
@@ -108,10 +128,116 @@ enum Event {
 	Disconnected { reason: String },
 	#[serde(rename = "error")]
 	Error { message: String },
+	/// Server-tab log notification (client join/leave/switch, channel group
+	/// assignment, channel/server changes, own permission errors).
+	#[serde(rename = "serverLog")]
+	ServerLog {
+		#[serde(flatten)]
+		entry: ServerLogEntry,
+	},
 }
 
 fn emit(event: &Event) {
 	println!("{}", serde_json::to_string(event).unwrap());
+}
+
+fn emit_server_log(entry: ServerLogEntry) {
+	emit(&Event::ServerLog { entry });
+}
+
+/// Translates a single book-state diff into a Server-tab log entry, when it's
+/// one of the changes worth surfacing there (client join/leave/switch,
+/// channel group assignment, channel/server changes). Most diffs (e.g.
+/// per-field client updates like mute state) are intentionally not logged -
+/// only the categories the native client's server log shows for these.
+fn log_book_event(con: &data::Connection, event: &BookEvent) {
+	match event {
+		BookEvent::PropertyAdded { id: PropertyId::Client(client_id), .. } => {
+			if let Some(client) = con.clients.get(client_id) {
+				let channel = con.channels.get(&client.channel).map(|c| c.name.clone()).unwrap_or_default();
+				emit_server_log(ServerLogEntry::ClientJoin { client: client.name.clone(), channel });
+			}
+		}
+		BookEvent::PropertyRemoved { id: PropertyId::Client(_), old: PropertyValue::Client(client), .. } => {
+			emit_server_log(ServerLogEntry::ClientLeave { client: client.name.clone() });
+		}
+		BookEvent::PropertyAdded { id: PropertyId::Channel(channel_id), .. } => {
+			if let Some(channel) = con.channels.get(channel_id) {
+				emit_server_log(ServerLogEntry::ChannelCreated { channel: channel.name.clone() });
+			}
+		}
+		BookEvent::PropertyRemoved { id: PropertyId::Channel(_), old: PropertyValue::Channel(channel), .. } => {
+			emit_server_log(ServerLogEntry::ChannelDeleted { channel: channel.name.clone() });
+		}
+		BookEvent::PropertyChanged { id: PropertyId::ClientChannel(client_id), old: PropertyValue::ChannelId(old_channel), .. } => {
+			if let Some(client) = con.clients.get(client_id) {
+				let from_channel = con.channels.get(old_channel).map(|c| c.name.clone()).unwrap_or_default();
+				let to_channel = con.channels.get(&client.channel).map(|c| c.name.clone()).unwrap_or_default();
+				emit_server_log(ServerLogEntry::ClientChannelSwitch {
+					client: client.name.clone(),
+					from_channel,
+					to_channel,
+				});
+			}
+		}
+		BookEvent::PropertyChanged { id: PropertyId::ClientChannelGroup(client_id), .. } => {
+			if let Some(client) = con.clients.get(client_id) {
+				let group =
+					con.channel_groups.get(&client.channel_group).map(|g| g.name.clone()).unwrap_or_default();
+				emit_server_log(ServerLogEntry::ClientChannelGroupAssigned { client: client.name.clone(), group });
+			}
+		}
+		BookEvent::PropertyChanged {
+			id:
+				PropertyId::ChannelName(channel_id)
+				| PropertyId::ChannelTopic(channel_id)
+				| PropertyId::ChannelMaxClients(channel_id)
+				| PropertyId::ChannelMaxFamilyClients(channel_id)
+				| PropertyId::ChannelHasPassword(channel_id)
+				| PropertyId::ChannelNeededTalkPower(channel_id)
+				| PropertyId::ChannelCodec(channel_id)
+				| PropertyId::ChannelCodecQuality(channel_id)
+				| PropertyId::ChannelIsDefault(channel_id)
+				| PropertyId::ChannelDeleteDelay(channel_id)
+				| PropertyId::ChannelPhoneticName(channel_id)
+				| PropertyId::ChannelIsPrivate(channel_id)
+				| PropertyId::ChannelForcedSilence(channel_id)
+				| PropertyId::ChannelOrder(channel_id)
+				| PropertyId::ChannelParent(channel_id),
+			..
+		} => {
+			if let Some(channel) = con.channels.get(channel_id) {
+				emit_server_log(ServerLogEntry::ChannelEdited { channel: channel.name.clone() });
+			}
+		}
+		BookEvent::PropertyChanged {
+			id:
+				PropertyId::ServerName
+				| PropertyId::ServerWelcomeMessage
+				| PropertyId::ServerHostmessage
+				| PropertyId::ServerHostmessageMode
+				| PropertyId::ServerHostbannerUrl
+				| PropertyId::ServerHostbannerGfxUrl
+				| PropertyId::ServerHostbannerGfxInterval
+				| PropertyId::ServerHostbannerMode
+				| PropertyId::ServerHostbuttonTooltip
+				| PropertyId::ServerHostbuttonUrl
+				| PropertyId::ServerHostbuttonGfxUrl
+				| PropertyId::ServerPhoneticName
+				| PropertyId::ServerIcon
+				| PropertyId::ServerMaxClients
+				| PropertyId::ServerAskForPrivilegekey
+				| PropertyId::ServerDefaultServerGroup
+				| PropertyId::ServerDefaultChannelGroup
+				| PropertyId::ServerCodecEncryptionMode
+				| PropertyId::ServerTempChannelDefaultDeleteDelay
+				| PropertyId::ServerPrioritySpeakerDimmModificator,
+			..
+		} => {
+			emit_server_log(ServerLogEntry::ServerEdited);
+		}
+		_ => {}
+	}
 }
 
 /// `Channel::order` is not a plain position, it's the id of the preceding
@@ -340,8 +466,11 @@ async fn run(args: Args) -> Result<()> {
 									let own = &state.clients[&state.own_client];
 									own.client_move(ChannelId(id))
 								};
-								if let Err(e) = part.send(&mut con) {
-									emit(&Event::Error { message: e.to_string() });
+								match part.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Channel switch".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
 								}
 							}
 							Err(_) => emit(&Event::Error { message: format!("Invalid channel id: {rest}") }),
@@ -518,6 +647,8 @@ async fn run(args: Args) -> Result<()> {
 									emit(&Event::Poke { from: invoker.name.clone(), message: message.clone() });
 								}
 							}
+						} else {
+							log_book_event(con.get_state()?, event);
 						}
 					}
 					emit(&snapshot(con.get_state()?));
@@ -539,7 +670,13 @@ async fn run(args: Args) -> Result<()> {
 				Some(Ok(StreamItem::MessageResult(handle, result))) => {
 					if let Some(label) = pending_messages.remove(&handle) {
 						if let Err(e) = result {
-							emit(&Event::Error { message: format!("{label} failed: {e}") });
+							if e.missing_permission.is_some() {
+								emit(&Event::ServerLog {
+									entry: ServerLogEntry::PermissionError { action: label },
+								});
+							} else {
+								emit(&Event::Error { message: format!("{label} failed: {e}") });
+							}
 						}
 					}
 				}

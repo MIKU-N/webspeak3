@@ -46,10 +46,18 @@
 |---|---|
 | 🔌 **Real TeamSpeak protocol** | Connects to actual TS3/TS6 servers over a WebSocket gateway — the server stays exactly as-is |
 | 🎙️ **Low-latency voice** | Opus-encoded voice with voice activation ("Sprachaktivierung") and adjustable sensitivity |
+| 🤫 **Whisper** | Target your voice at specific channels or clients instead of your whole current channel |
 | 🔊 **Custom audio output picker** | Route playback to any output device — works even in browsers without `AudioContext.setSinkId` |
-| 💬 **Full text chat** | Channel, server-wide, and private (1:1) chat, each in its own tab |
-| 🌳 **Live channel/client tree** | Correct ordering, status icons (channel commander, away, muted, deafened), click to switch channels |
+| 💬 **Full text chat** | Channel, server-wide, and private (1:1) chat, each in its own tab — Shift+Enter for a newline |
+| 🌳 **Live channel/client tree** | Correct ordering, status icons (channel commander, away, muted, deafened), country flags, click to switch channels |
+| 🖱️ **Right-click context menu** | Private chat, poke, copy name, and whisper-target toggle straight from a client's row |
+| 📜 **Server log** | Join/leave/switch, channel-group, and channel/server-change events shown inline, like the native client |
+| 🔔 **Custom sound notifications** | Per-event sounds (connect, poke, messages, ...) with volume control and `.ts3soundpack` import |
+| 🪪 **Persistent identity** | Keeps the same client UID across sessions instead of generating a new one every connect |
+| 👉 **Poke & away status** | Poke clients with an optional message; set yourself away with presets or a custom status |
 | ⭐ **Favorites & reconnect** | Remembers your last server/nickname; switch servers without leaving your tab |
+| 📱 **Mobile-friendly layout** | Responsive single-column layout for narrow screens, not just a shrunk desktop UI |
+| 🌍 **Localized UI** | Interface available in German and English, detected automatically or switchable in Options |
 | 🌗 **Dark / light theme** | Clean, modern UI that adapts to your preference |
 | 🔁 **Seamless reconnect** | Switch connections mid-session — old state tears down cleanly, no leaks or duplicates |
 

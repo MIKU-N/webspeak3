@@ -268,6 +268,16 @@ export class Ts3Connection {
     this.child?.stdin.write(`muteoutput ${muted ? "1" : "0"}\n`);
   }
 
+  /** Empty channelIds/clientIds clears whisper mode, returning outgoing
+   *  voice to the normal current-channel broadcast. */
+  async setWhisperTargets(channelIds: number[], clientIds: number[]): Promise<void> {
+    if (channelIds.length === 0 && clientIds.length === 0) {
+      this.child?.stdin.write("unwhisper\n");
+    } else {
+      this.child?.stdin.write(`whisper ${channelIds.join(",")};${clientIds.join(",")}\n`);
+    }
+  }
+
   async disconnect(message = ""): Promise<void> {
     if (this.child && !this.child.killed) {
       const sanitized = message.replace(/[\r\n]+/g, " ").trim();

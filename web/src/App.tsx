@@ -1477,6 +1477,10 @@ function AppInner() {
     isSelf: boolean;
   } | null>(null);
   const clientContextMenuRef = useRef<HTMLDivElement>(null);
+  const [whisperChannelIds, setWhisperChannelIds] = useState<Set<number>>(new Set());
+  const [whisperClientIds, setWhisperClientIds] = useState<Set<number>>(new Set());
+  const [whisperMenuOpen, setWhisperMenuOpen] = useState(false);
+  const whisperMenuRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("channel");
   const [theme, setTheme] = useState<"light" | "dark">(() =>
     window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light"
@@ -2034,6 +2038,40 @@ function AppInner() {
   }, [clientContextMenu]);
 
   useEffect(() => {
+    if (!connected) {
+      setWhisperChannelIds(new Set());
+      setWhisperClientIds(new Set());
+    }
+  }, [connected]);
+
+  useEffect(() => {
+    if (!connected) return;
+    socketRef.current?.send(
+      JSON.stringify({
+        type: "setWhisperTargets",
+        channelIds: [...whisperChannelIds],
+        clientIds: [...whisperClientIds],
+      })
+    );
+  }, [whisperChannelIds, whisperClientIds, connected]);
+
+  useEffect(() => {
+    if (!whisperMenuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (!whisperMenuRef.current?.contains(e.target as Node)) setWhisperMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setWhisperMenuOpen(false);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [whisperMenuOpen]);
+
+  useEffect(() => {
     if (!extrasMenuOpen) return;
     const onPointerDown = (e: MouseEvent) => {
       if (!extrasMenuRef.current?.contains(e.target as Node)) setExtrasMenuOpen(false);
@@ -2213,6 +2251,29 @@ function AppInner() {
   const handlePokeClient = (clientId: number, clientName: string) => {
     setPokeTarget({ id: clientId, name: clientName });
     setPokeMessage("");
+  };
+
+  const toggleWhisperChannel = (channelId: number) => {
+    setWhisperChannelIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(channelId)) next.delete(channelId);
+      else next.add(channelId);
+      return next;
+    });
+  };
+
+  const toggleWhisperClient = (clientId: number) => {
+    setWhisperClientIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(clientId)) next.delete(clientId);
+      else next.add(clientId);
+      return next;
+    });
+  };
+
+  const clearWhisperTargets = () => {
+    setWhisperChannelIds(new Set());
+    setWhisperClientIds(new Set());
   };
 
   const handleClientContextMenu = (
@@ -2500,6 +2561,54 @@ function AppInner() {
             )}
           </div>
           <span className="ts-toolbar-sep" />
+          <div className="ts-toolbar-away" ref={whisperMenuRef}>
+            <button
+              className={`ts-icon-button${whisperChannelIds.size > 0 || whisperClientIds.size > 0 ? " ts-away-on" : ""}`}
+              onClick={() => setWhisperMenuOpen((v) => !v)}
+              disabled={!connected}
+              title={t("toolbar.whisper")}
+            >
+              🤫
+            </button>
+            {whisperMenuOpen && (
+              <div className="ts-menu ts-menu-away">
+                <div className="ts-context-menu-title">{t("whisper.channels")}</div>
+                {channels.map((ch) => (
+                  <label key={ch.id} className="ts-menu-item">
+                    <input
+                      type="checkbox"
+                      checked={whisperChannelIds.has(ch.id)}
+                      onChange={() => toggleWhisperChannel(ch.id)}
+                    />
+                    <span className="ts-menu-item-label">{ch.name}</span>
+                  </label>
+                ))}
+                {whisperClientIds.size > 0 && (
+                  <>
+                    <div className="ts-menu-separator" />
+                    <div className="ts-context-menu-title">{t("whisper.clients")}</div>
+                    {[...whisperClientIds].map((id) => (
+                      <button key={id} className="ts-menu-item" onClick={() => toggleWhisperClient(id)}>
+                        <span className="ts-menu-item-icon">✕</span>
+                        <span className="ts-menu-item-label">
+                          {clients.find((c) => c.id === id)?.name ?? id}
+                        </span>
+                      </button>
+                    ))}
+                  </>
+                )}
+                {(whisperChannelIds.size > 0 || whisperClientIds.size > 0) && (
+                  <>
+                    <div className="ts-menu-separator" />
+                    <button className="ts-menu-item" onClick={clearWhisperTargets}>
+                      <span className="ts-menu-item-label">{t("whisper.clearAll")}</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          <span className="ts-toolbar-sep" />
           <button
             className={`ts-icon-button${micOn && !inputMuted ? " ts-mic-on" : ""}${micOn && inputMuted ? " ts-muted-on" : ""}`}
             onClick={handleToggleMic}
@@ -2722,6 +2831,22 @@ function AppInner() {
             <span className="ts-menu-item-icon">📋</span>
             <span className="ts-menu-item-label">{t("clientContext.copyName")}</span>
           </button>
+          {!clientContextMenu.isSelf && (
+            <button
+              className="ts-menu-item"
+              onClick={() => {
+                toggleWhisperClient(clientContextMenu.clientId);
+                setClientContextMenu(null);
+              }}
+            >
+              <span className="ts-menu-item-icon">🤫</span>
+              <span className="ts-menu-item-label">
+                {whisperClientIds.has(clientContextMenu.clientId)
+                  ? t("clientContext.removeWhisperTarget")
+                  : t("clientContext.addWhisperTarget")}
+              </span>
+            </button>
+          )}
           <div className="ts-menu-separator" />
           <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
             <span className="ts-menu-item-icon">🏷️</span>

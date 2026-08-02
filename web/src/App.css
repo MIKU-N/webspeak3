@@ -645,14 +645,18 @@
   border-top: 1px solid var(--border-soft);
 }
 
-.ts-chat-input-row input {
+.ts-chat-input-row textarea {
   flex: 1;
   border: 1px solid var(--border);
   border-radius: 2px;
   padding: 0.3rem 0.5rem;
   font-size: 12px;
+  font-family: inherit;
   background: var(--input-bg);
   color: var(--input-text);
+  resize: none;
+  max-height: 8.5em;
+  overflow-y: auto;
 }
 
 .ts-chat-input-row button {

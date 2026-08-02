@@ -1399,6 +1399,7 @@ function AppInner() {
   const [chat, setChat] = useState<ChatEntry[]>([]);
   const [serverChat, setServerChat] = useState<ChatEntry[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const [pmThreads, setPmThreads] = useState<Record<number, PmThread>>({});
   const [pokes, setPokes] = useState<PokeNotice[]>([]);
   const [pokeTarget, setPokeTarget] = useState<{ id: number; name: string } | null>(null);
@@ -2092,6 +2093,13 @@ function AppInner() {
 
   const handleSelectItem = (item: SelectedItem) => setSelected(item);
 
+  useEffect(() => {
+    const el = chatInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [chatInput]);
+
   const handleSendChat = () => {
     const message = chatInput.trim();
     if (!message) return;
@@ -2695,10 +2703,17 @@ function AppInner() {
             ))}
           </div>
           <div className="ts-chat-input-row">
-            <input
+            <textarea
+              ref={chatInputRef}
+              rows={1}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSendChat()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendChat();
+                }
+              }}
               disabled={!connected}
               placeholder={
                 !connected

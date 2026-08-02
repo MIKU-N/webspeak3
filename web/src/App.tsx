@@ -159,6 +159,16 @@ interface ClientInfo {
   away: boolean;
   awayMessage: string;
   isChannelCommander: boolean;
+  country: string;
+}
+
+/** Converts an ISO 3166-1 alpha-2 country code (e.g. "DE") to its flag emoji
+ *  via Unicode regional indicator symbols. Returns null for codes the server
+ *  doesn't report (empty string - common when geo-IP isn't configured). */
+function countryFlag(code: string): string | null {
+  if (!/^[A-Za-z]{2}$/.test(code)) return null;
+  const codePoints = [...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65);
+  return String.fromCodePoint(...codePoints);
 }
 
 function ChannelIcon() {
@@ -266,6 +276,7 @@ function ChannelTree({
                     title={c.id === ownClientId ? undefined : `${t("tree.privateChatWith")} ${c.name}`}
                   >
                     <ClientIcon />
+                    {countryFlag(c.country) && <span title={c.country}>{countryFlag(c.country)}</span>}
                     <span>{c.name}</span>
                     {c.away && c.awayMessage && (
                       <span className="ts-client-away-message">({c.awayMessage})</span>

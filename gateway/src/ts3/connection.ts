@@ -31,6 +31,7 @@ export interface ClientInfo {
   away: boolean;
   awayMessage: string;
   isChannelCommander: boolean;
+  country: string;
 }
 
 export type ServerLogEntry =
@@ -115,6 +116,7 @@ export class Ts3Connection {
           away: boolean;
           away_message: string;
           is_channel_commander: boolean;
+          country: string;
         }
 
         interface RawChannelInfo {
@@ -182,6 +184,7 @@ export class Ts3Connection {
               away: c.away,
               awayMessage: c.away_message,
               isChannelCommander: c.is_channel_commander,
+              country: c.country,
             })),
           });
         } else if (event.type === "privateMessage") {

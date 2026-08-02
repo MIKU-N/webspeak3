@@ -28,6 +28,7 @@ interface DemoClient {
   away: boolean;
   awayMessage: string;
   isChannelCommander: boolean;
+  country: string;
 }
 
 const DEMO_CHANNELS: DemoChannel[] = [
@@ -37,10 +38,10 @@ const DEMO_CHANNELS: DemoChannel[] = [
 ];
 
 const DEMO_NPCS: DemoClient[] = [
-  { id: 102, channel: 1, name: "Alex", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: true },
-  { id: 103, channel: 2, name: "Sam", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false },
-  { id: 104, channel: 2, name: "Jordan", inputMuted: true, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false },
-  { id: 105, channel: 3, name: "Riley", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: true, awayMessage: "brb, grabbing coffee", isChannelCommander: false },
+  { id: 102, channel: 1, name: "Alex", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: true, country: "US" },
+  { id: 103, channel: 2, name: "Sam", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "GB" },
+  { id: 104, channel: 2, name: "Jordan", inputMuted: true, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "CA" },
+  { id: 105, channel: 3, name: "Riley", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: true, awayMessage: "brb, grabbing coffee", isChannelCommander: false, country: "DE" },
 ];
 
 const SELF_ID = 101;
@@ -218,6 +219,7 @@ export class DemoSocket {
       away: false,
       awayMessage: "",
       isChannelCommander: false,
+      country: "",
     };
     this.emit({ type: "channels", channels: DEMO_CHANNELS, clients: [self, ...DEMO_NPCS] });
   }

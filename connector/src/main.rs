@@ -68,6 +68,7 @@ struct ClientInfo {
 	away: bool,
 	away_message: String,
 	is_channel_commander: bool,
+	country: String,
 }
 
 /// Human-facing entries for the Server tab's log-style notifications
@@ -308,6 +309,7 @@ fn snapshot(con: &data::Connection) -> Event {
 			away: c.away_message.is_some(),
 			away_message: c.away_message.clone().unwrap_or_default(),
 			is_channel_commander: c.is_channel_commander,
+			country: c.country_code.clone(),
 		})
 		.collect();
 	Event::Channels { channels, clients }

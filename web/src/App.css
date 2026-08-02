@@ -26,6 +26,18 @@
   background: var(--bg);
   color: var(--text);
   color-scheme: light;
+  container-type: inline-size;
+}
+
+/* Demo-only: simulates a narrow viewport so the mobile layout (driven by
+   the @container rules below) can be previewed without resizing the
+   actual browser window. */
+.ts-app.ts-force-mobile {
+  max-width: 390px;
+  margin: 0 auto;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(0, 0, 0, 0.5);
 }
 
 .ts-app.ts-theme-dark {
@@ -56,6 +68,11 @@
 
 .ts-demo-banner {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   padding: 0.35rem 0.75rem;
   background: #7a4d00;
   color: #fff;
@@ -66,6 +83,21 @@
 .ts-demo-banner a {
   color: #fff;
   text-decoration: underline;
+}
+
+.ts-demo-mobile-toggle {
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  padding: 0.15rem 0.6rem;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.ts-demo-mobile-toggle:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 /* Toolbar */
@@ -1255,7 +1287,7 @@
 
 /* Mobile layout */
 
-@media (max-width: 700px) {
+@container (max-width: 700px) {
   .ts-menubar {
     flex-wrap: wrap;
     row-gap: 0.2rem;

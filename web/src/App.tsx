@@ -1404,6 +1404,7 @@ function AppInner() {
   const [pokeTarget, setPokeTarget] = useState<{ id: number; name: string } | null>(null);
   const [pokeMessage, setPokeMessage] = useState("");
   const pokeBackdrop = useBackdropDismiss(() => setPokeTarget(null));
+  const [demoForceMobile, setDemoForceMobile] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>("channel");
   const [theme, setTheme] = useState<"light" | "dark">(() =>
     window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light"
@@ -2144,13 +2145,16 @@ function AppInner() {
   const t = useT();
 
   return (
-    <div className={`ts-app ts-theme-${theme}`}>
+    <div className={`ts-app ts-theme-${theme}${demoForceMobile ? " ts-force-mobile" : ""}`}>
       {DEMO_MODE && (
         <div className="ts-demo-banner">
           Demo mode — simulated data only, no real TeamSpeak server involved.{" "}
           <a href="https://github.com/Moepchi/webspeak3" target="_blank" rel="noreferrer">
             Get WebSpeak3
           </a>
+          <button className="ts-demo-mobile-toggle" onClick={() => setDemoForceMobile((v) => !v)}>
+            {demoForceMobile ? "🖥 Desktop view" : "📱 Mobile view"}
+          </button>
         </div>
       )}
       <div className="ts-menubar">

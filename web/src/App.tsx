@@ -65,6 +65,9 @@ const GATEWAY_URL = import.meta.env.DEV
 
 const LAST_HOST_KEY = "webspeak3:last-host";
 const LAST_NICKNAME_KEY = "webspeak3:last-nickname";
+/** Identity persisted across sessions so the server sees the same client UID
+ *  each time, instead of a fresh one being generated per connection. */
+const IDENTITY_KEY = "webspeak3:identity";
 const FAVORITES_KEY = "webspeak3:favorites";
 const INPUT_DEVICE_KEY = "webspeak3:input-device";
 const PLAYBACK_VOLUME_KEY = "webspeak3:playback-volume";
@@ -1719,6 +1722,7 @@ function AppInner() {
           serverPassword: connectServerPassword || undefined,
           channelPassword: connectChannelPassword || undefined,
           defaultChannel: connectDefaultChannel || undefined,
+          identity: localStorage.getItem(IDENTITY_KEY) || undefined,
         })
       );
     };
@@ -1733,6 +1737,7 @@ function AppInner() {
           setConnected(true);
           localStorage.setItem(LAST_HOST_KEY, connectHost);
           localStorage.setItem(LAST_NICKNAME_KEY, connectNickname);
+          if (data.identity) localStorage.setItem(IDENTITY_KEY, data.identity);
           setServerName(data.serverName);
           setServerMaxClients(data.serverMaxClients);
           setServerVersion(data.serverVersion);

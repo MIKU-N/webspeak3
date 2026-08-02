@@ -71,6 +71,7 @@ wss.on("connection", (socket: WebSocket) => {
           serverPassword: msg.serverPassword,
           channelPassword: msg.channelPassword,
           defaultChannel: msg.defaultChannel,
+          identity: msg.identity,
         };
         connection = new Ts3Connection(options);
         connection.onEvent((event) => socket.send(JSON.stringify(event)));

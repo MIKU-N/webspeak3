@@ -15,7 +15,7 @@ use tsclientlib::events::{Event as BookEvent, PropertyId, PropertyValue};
 use tsclientlib::messages::c2s::{OutClientPokeRequestPart, OutSendTextMessagePart};
 use tsclientlib::prelude::*;
 use tsclientlib::{
-	data, ChannelId, ClientId, Connection, DisconnectOptions, MaxClients, MessageHandle,
+	data, ChannelId, ClientId, Connection, DisconnectOptions, Identity, MaxClients, MessageHandle,
 	MessageTarget, Reason, StreamItem, TextMessageTargetMode,
 };
 use tsproto_packets::packets::{AudioData, CodecType, OutAudio};
@@ -43,6 +43,12 @@ struct Args {
 	/// instead of the server's actual default channel
 	#[arg(long)]
 	default_channel: Option<String>,
+	/// Previously-issued identity (as emitted in the "connected" event's
+	/// `identity` field) to reconnect with, so the server sees the same
+	/// client UID across sessions. A fresh identity is generated - and
+	/// reported back the same way - when omitted or unparseable.
+	#[arg(long)]
+	identity: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -102,6 +108,9 @@ enum Event {
 		server_version: String,
 		server_license: String,
 		server_banner_url: String,
+		/// Opaque JSON blob the frontend can store and pass back as `--identity`
+		/// on a future connection to keep the same client UID.
+		identity: String,
 	},
 	#[serde(rename = "channels")]
 	Channels { channels: Vec<ChannelInfo>, clients: Vec<ClientInfo> },
@@ -348,7 +357,13 @@ async fn run(args: Args) -> Result<()> {
 	tracing_subscriber::fmt().with_env_filter("warn").with_writer(std::io::stderr).init();
 
 	let address = args.address.clone();
-	let mut con_config = Connection::build(args.address).name(args.nickname);
+	let identity = args
+		.identity
+		.as_deref()
+		.and_then(|s| serde_json::from_str::<Identity>(s).ok())
+		.unwrap_or_else(Identity::create);
+	let identity_str = serde_json::to_string(&identity).unwrap();
+	let mut con_config = Connection::build(args.address).name(args.nickname).identity(identity);
 	if let Some(pwd) = args.server_password {
 		con_config = con_config.password(pwd);
 	}
@@ -396,6 +411,7 @@ async fn run(args: Args) -> Result<()> {
 		server_version,
 		server_license,
 		server_banner_url,
+		identity: identity_str,
 	});
 
 	// Subscribe to all channels so we actually receive the full channel/client list.

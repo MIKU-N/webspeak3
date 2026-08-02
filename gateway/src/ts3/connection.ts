@@ -54,6 +54,7 @@ export type Ts3ConnectionEvent =
       serverVersion: string;
       serverLicense: string;
       serverBannerUrl: string;
+      identity: string;
     }
   | { type: "channels"; channels: ChannelInfo[]; clients: ClientInfo[] }
   | { type: "chatMessage"; from: string; message: string }
@@ -72,6 +73,9 @@ export interface Ts3ConnectOptions {
   serverPassword?: string;
   channelPassword?: string;
   defaultChannel?: string;
+  /** Previously-issued identity (from a prior "connected" event) to keep
+   *  the same client UID across sessions. Omit to get a freshly generated one. */
+  identity?: string;
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -102,6 +106,7 @@ export class Ts3Connection {
     if (this.options.serverPassword) args.push("--server-password", this.options.serverPassword);
     if (this.options.channelPassword) args.push("--channel-password", this.options.channelPassword);
     if (this.options.defaultChannel) args.push("--default-channel", this.options.defaultChannel);
+    if (this.options.identity) args.push("--identity", this.options.identity);
     this.child = spawn(CONNECTOR_BIN, args);
 
     createInterface({ input: this.child.stdout }).on("line", (line) => {
@@ -139,6 +144,7 @@ export class Ts3Connection {
               server_version: string;
               server_license: string;
               server_banner_url: string;
+              identity: string;
             }
           | { type: "channels"; channels: RawChannelInfo[]; clients: RawClientInfo[] }
           | { type: "chatMessage"; from: string; message: string }
@@ -160,6 +166,7 @@ export class Ts3Connection {
             serverVersion: event.server_version,
             serverLicense: event.server_license,
             serverBannerUrl: event.server_banner_url,
+            identity: event.identity,
           });
         } else if (event.type === "channels") {
           this.emit({

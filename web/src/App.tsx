@@ -218,6 +218,7 @@ function ChannelTree({
   onSwitchChannel,
   onOpenPrivateChat,
   onPokeClient,
+  onClientContextMenu,
 }: {
   channels: ChannelInfo[];
   clients: ClientInfo[];
@@ -229,6 +230,7 @@ function ChannelTree({
   onSwitchChannel: (channelId: number) => void;
   onOpenPrivateChat: (clientId: number, clientName: string) => void;
   onPokeClient: (clientId: number, clientName: string) => void;
+  onClientContextMenu: (e: React.MouseEvent, clientId: number, clientName: string, isSelf: boolean) => void;
 }) {
   const t = useT();
   const children = channels.filter((c) => c.parent === parent).sort((a, b) => a.order - b.order);
@@ -260,6 +262,7 @@ function ChannelTree({
                       talkers.has(c.id) ? " ts-talking" : ""
                     }`}
                     onClick={c.id === ownClientId ? undefined : () => onOpenPrivateChat(c.id, c.name)}
+                    onContextMenu={(e) => onClientContextMenu(e, c.id, c.name, c.id === ownClientId)}
                     title={c.id === ownClientId ? undefined : `${t("tree.privateChatWith")} ${c.name}`}
                   >
                     <ClientIcon />
@@ -295,6 +298,7 @@ function ChannelTree({
             onSwitchChannel={onSwitchChannel}
             onOpenPrivateChat={onOpenPrivateChat}
             onPokeClient={onPokeClient}
+            onClientContextMenu={onClientContextMenu}
           />
         </li>
       ))}
@@ -1406,6 +1410,14 @@ function AppInner() {
   const [pokeMessage, setPokeMessage] = useState("");
   const pokeBackdrop = useBackdropDismiss(() => setPokeTarget(null));
   const [demoForceMobile, setDemoForceMobile] = useState(false);
+  const [clientContextMenu, setClientContextMenu] = useState<{
+    x: number;
+    y: number;
+    clientId: number;
+    clientName: string;
+    isSelf: boolean;
+  } | null>(null);
+  const clientContextMenuRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("channel");
   const [theme, setTheme] = useState<"light" | "dark">(() =>
     window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light"
@@ -1945,6 +1957,22 @@ function AppInner() {
   }, [awayMenuOpen]);
 
   useEffect(() => {
+    if (!clientContextMenu) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (!clientContextMenuRef.current?.contains(e.target as Node)) setClientContextMenu(null);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setClientContextMenu(null);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [clientContextMenu]);
+
+  useEffect(() => {
     if (!extrasMenuOpen) return;
     const onPointerDown = (e: MouseEvent) => {
       if (!extrasMenuRef.current?.contains(e.target as Node)) setExtrasMenuOpen(false);
@@ -2124,6 +2152,18 @@ function AppInner() {
   const handlePokeClient = (clientId: number, clientName: string) => {
     setPokeTarget({ id: clientId, name: clientName });
     setPokeMessage("");
+  };
+
+  const handleClientContextMenu = (
+    e: React.MouseEvent,
+    clientId: number,
+    clientName: string,
+    isSelf: boolean
+  ) => {
+    e.preventDefault();
+    const x = Math.min(e.clientX, window.innerWidth - 220);
+    const y = Math.min(e.clientY, window.innerHeight - 300);
+    setClientContextMenu({ x, y, clientId, clientName, isSelf });
   };
 
   const handleSendPoke = () => {
@@ -2582,6 +2622,70 @@ function AppInner() {
         </div>
       ))}
 
+      {clientContextMenu && (
+        <div
+          ref={clientContextMenuRef}
+          className="ts-context-menu"
+          style={{ top: clientContextMenu.y, left: clientContextMenu.x }}
+        >
+          <div className="ts-context-menu-title">{clientContextMenu.clientName}</div>
+          <button
+            className="ts-menu-item"
+            disabled={clientContextMenu.isSelf}
+            onClick={() => {
+              handleOpenPrivateChat(clientContextMenu.clientId, clientContextMenu.clientName);
+              setClientContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">💬</span>
+            <span className="ts-menu-item-label">{t("clientContext.privateChat")}</span>
+          </button>
+          <button
+            className="ts-menu-item"
+            disabled={clientContextMenu.isSelf}
+            onClick={() => {
+              handlePokeClient(clientContextMenu.clientId, clientContextMenu.clientName);
+              setClientContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">👉</span>
+            <span className="ts-menu-item-label">{t("clientContext.poke")}</span>
+          </button>
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              void navigator.clipboard?.writeText(clientContextMenu.clientName);
+              setClientContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">📋</span>
+            <span className="ts-menu-item-label">{t("clientContext.copyName")}</span>
+          </button>
+          <div className="ts-menu-separator" />
+          <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+            <span className="ts-menu-item-icon">🏷️</span>
+            <span className="ts-menu-item-label">{t("clientContext.assignChannelGroup")}</span>
+          </button>
+          <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+            <span className="ts-menu-item-icon">🎖️</span>
+            <span className="ts-menu-item-label">{t("clientContext.assignServerGroup")}</span>
+          </button>
+          {!clientContextMenu.isSelf && (
+            <>
+              <div className="ts-menu-separator" />
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">👢</span>
+                <span className="ts-menu-item-label">{t("clientContext.kick")}</span>
+              </button>
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">🚫</span>
+                <span className="ts-menu-item-label">{t("clientContext.ban")}</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="ts-body">
         <div className="ts-upper" style={{ height: upperHeight }}>
           <div className="ts-tree-panel" style={{ width: treeWidth }}>
@@ -2605,6 +2709,7 @@ function AppInner() {
                   onSwitchChannel={handleSwitchChannel}
                   onOpenPrivateChat={handleOpenPrivateChat}
                   onPokeClient={handlePokeClient}
+                  onClientContextMenu={handleClientContextMenu}
                 />
               </>
             ) : (

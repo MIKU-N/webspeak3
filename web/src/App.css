@@ -190,6 +190,29 @@
   background: var(--border-soft);
 }
 
+.ts-context-menu {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 0.25rem;
+  background: var(--bg-toolbar-1);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.ts-context-menu-title {
+  padding: 0.35rem 0.5rem;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .ts-toolbar {
   display: flex;
   flex-direction: column;

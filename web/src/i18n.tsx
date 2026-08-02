@@ -206,6 +206,15 @@ const translations: Record<Lang, Record<string, string>> = {
     "poke.pokedYou": "hat dich angestupst",
     "poke.dismiss": "Schließen",
 
+    "clientContext.privateChat": "Privater Chat",
+    "clientContext.poke": "Anstupsen",
+    "clientContext.copyName": "Namen kopieren",
+    "clientContext.assignChannelGroup": "Channel-Gruppe zuweisen",
+    "clientContext.assignServerGroup": "Server-Gruppe zuweisen",
+    "clientContext.kick": "Vom Server kicken",
+    "clientContext.ban": "Bannen",
+    "clientContext.notSupported": "Im Web-Client noch nicht unterstützt",
+
     "connectError.dismiss": "Schließen",
     "dialog.close": "Schließen",
 
@@ -433,6 +442,15 @@ const translations: Record<Lang, Record<string, string>> = {
     "poke.cancel": "Cancel",
     "poke.pokedYou": "poked you",
     "poke.dismiss": "Dismiss",
+
+    "clientContext.privateChat": "Private chat",
+    "clientContext.poke": "Poke",
+    "clientContext.copyName": "Copy name",
+    "clientContext.assignChannelGroup": "Assign channel group",
+    "clientContext.assignServerGroup": "Assign server group",
+    "clientContext.kick": "Kick from server",
+    "clientContext.ban": "Ban",
+    "clientContext.notSupported": "Not yet supported in the web client",
 
     "connectError.dismiss": "Dismiss",
     "dialog.close": "Close",

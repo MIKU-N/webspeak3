@@ -234,6 +234,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "sounds.test": "▶ Testen",
     "sounds.upload": "Hochladen",
     "sounds.reset": "Zurücksetzen",
+    "sounds.importSoundpack": "Soundpack importieren (.ts3soundpack)",
+    "sounds.importResult": "{matched} Sound(s) übernommen, {unmatched} Datei(en) nicht zugeordnet",
 
     "nachrichten.title": "Nachrichten",
     "nachrichten.subtitle": "Nachrichten anpassen",
@@ -471,6 +473,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "sounds.test": "▶ Test",
     "sounds.upload": "Upload",
     "sounds.reset": "Reset",
+    "sounds.importSoundpack": "Import soundpack (.ts3soundpack)",
+    "sounds.importResult": "{matched} sound(s) imported, {unmatched} file(s) not matched",
 
     "nachrichten.title": "Messages",
     "nachrichten.subtitle": "Customize messages",

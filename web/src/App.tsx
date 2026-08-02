@@ -40,6 +40,7 @@ import {
   setSoundsOutputDevice,
   type SoundEventId,
 } from "./sounds";
+import { parseSoundpack } from "./soundpack";
 
 // In dev, the gateway runs standalone on its own port. In production it's
 // served from the same origin/port as the web app (single container behind a
@@ -1113,6 +1114,11 @@ function SoundsPanel() {
   );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetRef = useRef<SoundEventId | null>(null);
+  const soundpackInputRef = useRef<HTMLInputElement | null>(null);
+  const [soundpackResult, setSoundpackResult] = useState<{
+    matchedCount: number;
+    unmatchedFiles: string[];
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1170,6 +1176,27 @@ function SoundsPanel() {
     });
   };
 
+  const handleImportSoundpackClick = () => soundpackInputRef.current?.click();
+
+  const handleSoundpackSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setSoundpackResult(null);
+    const { matched, unmatchedFiles } = await parseSoundpack(file);
+    for (const [event, sound] of Object.entries(matched) as [SoundEventId, { name: string; blob: Blob }][]) {
+      await saveCustomSound(event, new File([sound.blob], sound.name, { type: sound.blob.type }));
+    }
+    setCustomNames((prev) => {
+      const next = { ...prev };
+      for (const [event, sound] of Object.entries(matched) as [SoundEventId, { name: string; blob: Blob }][]) {
+        next[event] = sound.name;
+      }
+      return next;
+    });
+    setSoundpackResult({ matchedCount: Object.keys(matched).length, unmatchedFiles });
+  };
+
   return (
     <>
       <h3>{t("sounds.title")}</h3>
@@ -1190,6 +1217,17 @@ function SoundsPanel() {
         />
         <span>{Math.round(volume * 100)}%</span>
       </div>
+      <div className="ts-options-field-row">
+        <button onClick={handleImportSoundpackClick}>{t("sounds.importSoundpack")}</button>
+      </div>
+      {soundpackResult && (
+        <p className="ts-options-subtitle">
+          {t("sounds.importResult", {
+            matched: String(soundpackResult.matchedCount),
+            unmatched: String(soundpackResult.unmatchedFiles.length),
+          })}
+        </p>
+      )}
       <table className="ts-options-sounds-table">
         <tbody>
           {SOUND_EVENTS.map((eventId) => (
@@ -1225,6 +1263,13 @@ function SoundsPanel() {
         accept="audio/*"
         style={{ display: "none" }}
         onChange={(e) => void handleFileSelected(e)}
+      />
+      <input
+        ref={soundpackInputRef}
+        type="file"
+        accept=".ts3soundpack,.zip"
+        style={{ display: "none" }}
+        onChange={(e) => void handleSoundpackSelected(e)}
       />
     </>
   );

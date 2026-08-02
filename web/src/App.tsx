@@ -1,5 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
+
+/** Only dismiss on a genuine backdrop click, not a text-selection drag that
+ *  starts inside the dialog and releases over the backdrop. */
+function useBackdropDismiss(onDismiss: () => void) {
+  const mouseDownOnBackdrop = useRef(false);
+  return {
+    onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => {
+      mouseDownOnBackdrop.current = e.target === e.currentTarget;
+    },
+    onClick: (e: React.MouseEvent<HTMLDivElement>) => {
+      if (mouseDownOnBackdrop.current && e.target === e.currentTarget) onDismiss();
+    },
+  };
+}
 import {
   AudioPlayer,
   MicCapture,
@@ -430,8 +444,9 @@ function ConnectDialog({
   onCancel: () => void;
 }) {
   const t = useT();
+  const backdrop = useBackdropDismiss(onCancel);
   return (
-    <div className="ts-dialog-backdrop" onClick={onCancel}>
+    <div className="ts-dialog-backdrop" {...backdrop}>
       <div className="ts-dialog ts-connect-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="ts-dialog-titlebar">
           <span>{t("connect.title")}</span>
@@ -590,8 +605,9 @@ function FavoritesDialog({
     setSelectedId(null);
   };
 
+  const backdrop = useBackdropDismiss(onClose);
   return (
-    <div className="ts-dialog-backdrop" onClick={onClose}>
+    <div className="ts-dialog-backdrop" {...backdrop}>
       <div className="ts-dialog ts-favorites-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="ts-dialog-titlebar">
           <span>{t("favorites.title")}</span>
@@ -763,8 +779,9 @@ function AwayDialog({
   onCancel: () => void;
 }) {
   const t = useT();
+  const backdrop = useBackdropDismiss(onCancel);
   return (
-    <div className="ts-dialog-backdrop" onClick={onCancel}>
+    <div className="ts-dialog-backdrop" {...backdrop}>
       <div className="ts-dialog ts-away-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="ts-dialog-titlebar">
           <span>{t("away.dialog.title")}</span>
@@ -1302,8 +1319,9 @@ function OptionsDialog({
 }) {
   const t = useT();
   const active = OPTIONS_SECTIONS.find((s) => s.id === section) ?? OPTIONS_SECTIONS[0];
+  const backdrop = useBackdropDismiss(onClose);
   return (
-    <div className="ts-dialog-backdrop" onClick={onClose}>
+    <div className="ts-dialog-backdrop" {...backdrop}>
       <div className="ts-dialog ts-options-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="ts-dialog-titlebar">
           <span>{t("options.title")}</span>
@@ -1385,6 +1403,7 @@ function AppInner() {
   const [pokes, setPokes] = useState<PokeNotice[]>([]);
   const [pokeTarget, setPokeTarget] = useState<{ id: number; name: string } | null>(null);
   const [pokeMessage, setPokeMessage] = useState("");
+  const pokeBackdrop = useBackdropDismiss(() => setPokeTarget(null));
   const [activeTab, setActiveTab] = useState<ActiveTab>("channel");
   const [theme, setTheme] = useState<"light" | "dark">(() =>
     window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light"
@@ -2519,7 +2538,7 @@ function AppInner() {
       )}
 
       {pokeTarget && (
-        <div className="ts-poke-compose-backdrop" onClick={() => setPokeTarget(null)}>
+        <div className="ts-poke-compose-backdrop" {...pokeBackdrop}>
           <div className="ts-poke-compose" onClick={(e) => e.stopPropagation()}>
             <span>
               👉 {t("poke.title")} <strong>{pokeTarget.name}</strong>

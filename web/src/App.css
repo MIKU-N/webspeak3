@@ -1252,3 +1252,137 @@
 .ts-poke-notice button:hover {
   opacity: 1;
 }
+
+/* Mobile layout */
+
+@media (max-width: 700px) {
+  .ts-menubar {
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .ts-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .ts-toolbar-icons {
+    flex-wrap: wrap;
+    row-gap: 0.3rem;
+  }
+
+  .ts-icon-slider input[type="range"] {
+    width: 60px;
+  }
+
+  .ts-icon-select select {
+    max-width: 110px;
+  }
+
+  .ts-app-logo {
+    margin-left: 0;
+  }
+
+  .ts-toolbar-fields {
+    flex-wrap: wrap;
+    row-gap: 0.4rem;
+  }
+
+  .ts-toolbar-fields input:not([type="range"]),
+  .ts-toolbar-fields select {
+    max-width: 40vw;
+  }
+
+  .ts-body {
+    overflow-y: auto;
+  }
+
+  .ts-upper {
+    height: auto !important;
+    flex-direction: column;
+    flex-shrink: 1;
+  }
+
+  .ts-tree-panel {
+    width: 100% !important;
+    max-height: 35vh;
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .ts-resize-handle-vertical,
+  .ts-resize-handle-horizontal {
+    display: none;
+  }
+
+  .ts-side-panel {
+    max-height: 40vh;
+  }
+
+  .ts-banner-panel {
+    max-height: 25vh;
+  }
+
+  .ts-chat-panel {
+    min-height: 260px;
+  }
+
+  .ts-chat-tabs {
+    overflow-x: auto;
+  }
+
+  /* Dialogs */
+
+  .ts-dialog {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .ts-connect-dialog,
+  .ts-favorites-dialog,
+  .ts-away-dialog,
+  .ts-options-dialog {
+    width: 92vw !important;
+  }
+
+  .ts-dialog-row {
+    flex-direction: column;
+  }
+
+  .ts-dialog-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ts-favorites-body,
+  .ts-options-body {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .ts-favorites-list-col,
+  .ts-favorites-profile-col {
+    width: 100%;
+    border-right: none;
+    border-left: none;
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .ts-options-sidebar {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .ts-options-columns {
+    flex-direction: column;
+  }
+
+  .ts-poke-compose {
+    flex-wrap: wrap;
+    max-width: 92vw;
+  }
+
+  .ts-poke-compose input {
+    min-width: 160px;
+  }
+}

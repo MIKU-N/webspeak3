@@ -29,6 +29,7 @@ interface DemoClient {
   awayMessage: string;
   isChannelCommander: boolean;
   country: string;
+  uid: string;
 }
 
 const DEMO_CHANNELS: DemoChannel[] = [
@@ -38,10 +39,10 @@ const DEMO_CHANNELS: DemoChannel[] = [
 ];
 
 const DEMO_NPCS: DemoClient[] = [
-  { id: 102, channel: 1, name: "Alex", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: true, country: "US" },
-  { id: 103, channel: 2, name: "Sam", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "GB" },
-  { id: 104, channel: 2, name: "Jordan", inputMuted: true, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "CA" },
-  { id: 105, channel: 3, name: "Riley", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: true, awayMessage: "brb, grabbing coffee", isChannelCommander: false, country: "DE" },
+  { id: 102, channel: 1, name: "Alex", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: true, country: "US", uid: "demo-uid-alex" },
+  { id: 103, channel: 2, name: "Sam", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "GB", uid: "demo-uid-sam" },
+  { id: 104, channel: 2, name: "Jordan", inputMuted: true, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "CA", uid: "demo-uid-jordan" },
+  { id: 105, channel: 3, name: "Riley", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: true, awayMessage: "brb, grabbing coffee", isChannelCommander: false, country: "DE", uid: "demo-uid-riley" },
 ];
 
 const SELF_ID = 101;
@@ -220,6 +221,7 @@ export class DemoSocket {
       awayMessage: "",
       isChannelCommander: false,
       country: "",
+      uid: "demo-uid-self",
     };
     this.emit({ type: "channels", channels: DEMO_CHANNELS, clients: [self, ...DEMO_NPCS] });
   }

@@ -146,6 +146,27 @@ interface WhisperLogEntry {
   description: string;
 }
 
+type ContactCategory = "acquaintance" | "blocked" | "friend";
+
+interface Contact {
+  uid: string;
+  customName: string;
+  category: ContactCategory;
+  phoneticName: string;
+  ignored: boolean;
+}
+
+const CONTACTS_KEY = "webspeak3:contacts";
+
+function loadContacts(): Contact[] {
+  try {
+    const raw = localStorage.getItem(CONTACTS_KEY);
+    return raw ? (JSON.parse(raw) as Contact[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 interface MessagePreset {
   name: string;
   message: string;
@@ -202,6 +223,7 @@ interface ClientInfo {
   awayMessage: string;
   isChannelCommander: boolean;
   country: string;
+  uid: string;
 }
 
 /** Converts an ISO 3166-1 alpha-2 country code (e.g. "DE") to its flag emoji
@@ -1106,6 +1128,181 @@ function WhisperHistoryDialog({
   );
 }
 
+function ContactsDialog({
+  contacts,
+  onlineClients,
+  onSave,
+  onWhisper,
+  onShow,
+  onClose,
+}: {
+  contacts: Contact[];
+  onlineClients: ClientInfo[];
+  onSave: (contacts: Contact[]) => void;
+  onWhisper: (clientId: number) => void;
+  onShow: (clientId: number) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+  const [draft, setDraft] = useState<Contact[]>(() => contacts.map((c) => ({ ...c })));
+  const [selectedUid, setSelectedUid] = useState<string | null>(draft[0]?.uid ?? null);
+  const [addClientId, setAddClientId] = useState("");
+
+  const selected = draft.find((c) => c.uid === selectedUid) ?? null;
+  const displayName = (c: Contact) => {
+    const online = onlineClients.find((cl) => cl.uid === c.uid);
+    return c.customName || online?.name || c.uid;
+  };
+
+  const updateSelected = (patch: Partial<Contact>) => {
+    if (!selectedUid) return;
+    setDraft((prev) => prev.map((c) => (c.uid === selectedUid ? { ...c, ...patch } : c)));
+  };
+
+  const save = (next: Contact[]) => {
+    setDraft(next);
+    onSave(next);
+  };
+
+  const handleAdd = () => {
+    const client = onlineClients.find((c) => String(c.id) === addClientId);
+    if (!client || !client.uid || draft.some((c) => c.uid === client.uid)) return;
+    const contact: Contact = {
+      uid: client.uid,
+      customName: client.name,
+      category: "acquaintance",
+      phoneticName: "",
+      ignored: false,
+    };
+    save([...draft, contact]);
+    setSelectedUid(contact.uid);
+    setAddClientId("");
+  };
+
+  const handleRemove = () => {
+    if (!selectedUid) return;
+    save(draft.filter((c) => c.uid !== selectedUid));
+    setSelectedUid(null);
+  };
+
+  const addableClients = onlineClients.filter(
+    (c) => c.uid && !draft.some((contact) => contact.uid === c.uid)
+  );
+  const selectedOnlineClient = selected ? onlineClients.find((c) => c.uid === selected.uid) : undefined;
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-contacts-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("contacts.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-contacts-body">
+          <div className="ts-contacts-list-col">
+            <div className="ts-dialog-row">
+              <select value={addClientId} onChange={(e) => setAddClientId(e.target.value)}>
+                <option value="">{t("contacts.addOnlineClient")}</option>
+                {addableClients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <button disabled={!addClientId} onClick={handleAdd}>
+                {t("contacts.add")}
+              </button>
+            </div>
+            <ul className="ts-contacts-list">
+              {draft.map((c) => (
+                <li
+                  key={c.uid}
+                  className={`ts-contacts-list-item ts-contacts-category-${c.category}${c.uid === selectedUid ? " ts-contacts-list-item-selected" : ""}`}
+                  onClick={() => setSelectedUid(c.uid)}
+                >
+                  {onlineClients.some((cl) => cl.uid === c.uid) && <span className="ts-contacts-online-dot" />}
+                  {displayName(c)}
+                  {c.ignored && " 🚫"}
+                </li>
+              ))}
+              {draft.length === 0 && <li className="ts-contacts-list-empty">{t("contacts.empty")}</li>}
+            </ul>
+          </div>
+          <div className="ts-contacts-fields-col">
+            <label className="ts-dialog-field">
+              {t("contacts.customName")}
+              <input
+                disabled={!selected}
+                value={selected?.customName ?? ""}
+                onChange={(e) => updateSelected({ customName: e.target.value })}
+              />
+            </label>
+            <div className="ts-contacts-category-group">
+              {(["acquaintance", "blocked", "friend"] as ContactCategory[]).map((cat) => (
+                <label key={cat} className="ts-dialog-checkbox">
+                  <input
+                    type="radio"
+                    name="contact-category"
+                    disabled={!selected}
+                    checked={selected?.category === cat}
+                    onChange={() => updateSelected({ category: cat })}
+                  />
+                  {t(`contacts.category.${cat}`)}
+                </label>
+              ))}
+            </div>
+            <label className="ts-dialog-field">
+              {t("contacts.phoneticName")}
+              <input
+                disabled={!selected}
+                value={selected?.phoneticName ?? ""}
+                onChange={(e) => updateSelected({ phoneticName: e.target.value })}
+              />
+            </label>
+            <div className="ts-contacts-actions">
+              <button
+                disabled={!selectedOnlineClient}
+                onClick={() => selectedOnlineClient && onShow(selectedOnlineClient.id)}
+              >
+                {t("contacts.show")}
+              </button>
+              <button disabled={!selected} onClick={() => updateSelected({ ignored: !selected?.ignored })}>
+                {selected?.ignored ? t("contacts.unignore") : t("contacts.ignore")}
+              </button>
+              <button
+                disabled={!selectedOnlineClient}
+                onClick={() => selectedOnlineClient && onWhisper(selectedOnlineClient.id)}
+              >
+                {t("contacts.whisper")}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="ts-dialog-buttons">
+          <button onClick={handleRemove} disabled={!selected}>
+            {t("contacts.remove")}
+          </button>
+          <div className="ts-dialog-buttons-right">
+            <button disabled title={t("clientContext.notSupported")}>
+              {t("contacts.preferences")}
+            </button>
+            <button
+              onClick={() => {
+                onSave(draft);
+                onClose();
+              }}
+            >
+              {t("dialog.close")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AwayDialog({
   message,
   presets,
@@ -1850,6 +2047,8 @@ function AppInner() {
   const [changeNicknameOpen, setChangeNicknameOpen] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState("");
   const nicknameBackdrop = useBackdropDismiss(() => setChangeNicknameOpen(false));
+  const [contacts, setContacts] = useState<Contact[]>(() => loadContacts());
+  const [contactsOpen, setContactsOpen] = useState(false);
   const whisperLogIdRef = useRef(0);
   const prevWhisperTargetsRef = useRef<{ channels: Set<number>; clients: Set<number> } | null>(null);
 
@@ -1887,6 +2086,16 @@ function AppInner() {
   useEffect(() => {
     localStorage.setItem(COLLECTED_URLS_KEY, JSON.stringify(collectedUrls));
   }, [collectedUrls]);
+
+  useEffect(() => {
+    localStorage.setItem(CONTACTS_KEY, JSON.stringify(contacts));
+  }, [contacts]);
+
+  const isSenderIgnored = (senderName: string) => {
+    const senderClient = clients.find((c) => c.name === senderName);
+    if (!senderClient?.uid) return false;
+    return contacts.some((c) => c.uid === senderClient.uid && c.ignored);
+  };
 
   const recordUrlsFromMessage = (message: string, sender: string) => {
     const found = message.match(URL_REGEX);
@@ -2137,16 +2346,19 @@ function AppInner() {
           break;
         }
         case "chatMessage":
+          if (isSenderIgnored(data.from)) break;
           setChat((prev) => [...prev, { from: data.from, message: data.message }]);
           recordUrlsFromMessage(data.message, data.from);
           if (data.from !== connectNickname) void playSound("message");
           break;
         case "serverMessage":
+          if (isSenderIgnored(data.from)) break;
           setServerChat((prev) => [...prev, { from: data.from, message: data.message }]);
           recordUrlsFromMessage(data.message, data.from);
           if (data.from !== connectNickname) void playSound("message");
           break;
         case "privateMessage":
+          if (!data.fromSelf && isSenderIgnored(data.partnerName)) break;
           setPmThreads((prev) => {
             const existing = prev[data.partnerId];
             const thread: PmThread = existing ?? {
@@ -2938,16 +3150,22 @@ function AppInner() {
           </span>
           {extrasMenuOpen && (
             <div className="ts-menu">
-              {[
-                { icon: "🪪", label: t("menu.extras.identities"), shortcut: "Strg+I" },
-                { icon: "📇", label: t("menu.extras.contacts"), shortcut: "Strg+Umschalt+O" },
-              ].map((item) => (
-                <button key={item.label} className="ts-menu-item" disabled>
-                  <span className="ts-menu-item-icon">{item.icon}</span>
-                  <span className="ts-menu-item-label">{item.label}</span>
-                  {item.shortcut && <span className="ts-menu-item-shortcut">{item.shortcut}</span>}
-                </button>
-              ))}
+              <button className="ts-menu-item" disabled>
+                <span className="ts-menu-item-icon">🪪</span>
+                <span className="ts-menu-item-label">{t("menu.extras.identities")}</span>
+                <span className="ts-menu-item-shortcut">Strg+I</span>
+              </button>
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  setContactsOpen(true);
+                  setExtrasMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">📇</span>
+                <span className="ts-menu-item-label">{t("menu.extras.contacts")}</span>
+                <span className="ts-menu-item-shortcut">Strg+Umschalt+O</span>
+              </button>
               <button
                 className="ts-menu-item"
                 onClick={() => {
@@ -3274,6 +3492,20 @@ function AppInner() {
           entries={whisperLog}
           onClear={() => setWhisperLog([])}
           onClose={() => setWhisperHistoryOpen(false)}
+        />
+      )}
+
+      {contactsOpen && (
+        <ContactsDialog
+          contacts={contacts}
+          onlineClients={clients}
+          onSave={setContacts}
+          onWhisper={toggleWhisperClient}
+          onShow={(clientId) => {
+            const client = clients.find((c) => c.id === clientId);
+            if (client) setSelected({ type: "channel", id: client.channel });
+          }}
+          onClose={() => setContactsOpen(false)}
         />
       )}
 

@@ -783,6 +783,96 @@
   width: 560px;
 }
 
+.ts-contacts-dialog {
+  width: 640px;
+}
+
+.ts-contacts-body {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.ts-contacts-list-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.ts-contacts-fields-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ts-contacts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  height: 220px;
+  overflow-y: auto;
+}
+
+.ts-contacts-list-item {
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.ts-contacts-list-item:hover {
+  background: var(--hover-bg, rgba(255, 255, 255, 0.05));
+}
+
+.ts-contacts-list-item-selected {
+  background: var(--accent-soft, rgba(78, 161, 247, 0.2));
+}
+
+.ts-contacts-list-empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.ts-contacts-online-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4caf50;
+  margin-right: 0.4rem;
+}
+
+.ts-contacts-category-acquaintance {
+  color: var(--text);
+}
+
+.ts-contacts-category-friend {
+  color: #4caf50;
+}
+
+.ts-contacts-category-blocked {
+  color: #e5534b;
+}
+
+.ts-contacts-category-group {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 12px;
+}
+
+.ts-contacts-actions {
+  display: flex;
+  gap: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border-soft);
+}
+
 .ts-whisper-history-list {
   height: 260px;
   overflow-y: auto;

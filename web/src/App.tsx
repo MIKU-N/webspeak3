@@ -140,6 +140,12 @@ interface ClientLogEntry {
 const LOG_LEVELS: LogLevel[] = ["critical", "error", "warning", "info", "debug"];
 const MAX_LOG_ENTRIES = 500;
 
+interface WhisperLogEntry {
+  id: number;
+  timestamp: number;
+  description: string;
+}
+
 interface MessagePreset {
   name: string;
   message: string;
@@ -1050,6 +1056,56 @@ function ClientLogDialog({ entries, onClose }: { entries: ClientLogEntry[]; onCl
   );
 }
 
+function WhisperHistoryDialog({
+  serverName,
+  entries,
+  onClear,
+  onClose,
+}: {
+  serverName: string;
+  entries: WhisperLogEntry[];
+  onClear: () => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-whisper-history-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("whisperHistory.title", { server: serverName })}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          <div className="ts-whisper-history-list">
+            {entries.length === 0 && (
+              <div className="ts-whisper-history-empty">{t("whisperHistory.empty")}</div>
+            )}
+            {entries.map((e) => (
+              <div key={e.id} className="ts-whisper-history-row">
+                <span className="ts-log-time">{new Date(e.timestamp).toLocaleString()}</span>
+                <span>{e.description}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="ts-dialog-buttons">
+          <button onClick={onClear}>{t("whisperHistory.clear")}</button>
+          <div className="ts-dialog-buttons-right">
+            <button disabled title={t("clientContext.notSupported")}>
+              {t("whisperHistory.options")}
+            </button>
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AwayDialog({
   message,
   presets,
@@ -1787,6 +1843,15 @@ function AppInner() {
   const [logEntries, setLogEntries] = useState<ClientLogEntry[]>([]);
   const [clientLogOpen, setClientLogOpen] = useState(false);
   const logIdRef = useRef(0);
+  const [whisperLog, setWhisperLog] = useState<WhisperLogEntry[]>([]);
+  const [whisperHistoryOpen, setWhisperHistoryOpen] = useState(false);
+  const [selfMenuOpen, setSelfMenuOpen] = useState(false);
+  const selfMenuRef = useRef<HTMLDivElement | null>(null);
+  const [changeNicknameOpen, setChangeNicknameOpen] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState("");
+  const nicknameBackdrop = useBackdropDismiss(() => setChangeNicknameOpen(false));
+  const whisperLogIdRef = useRef(0);
+  const prevWhisperTargetsRef = useRef<{ channels: Set<number>; clients: Set<number> } | null>(null);
 
   const logClient = (level: LogLevel, category: string, message: string) => {
     const entry: ClientLogEntry = { id: ++logIdRef.current, timestamp: Date.now(), category, level, message };
@@ -2170,6 +2235,8 @@ function AppInner() {
           setPokes([]);
           setActiveTab("channel");
           setTalkers(new Set());
+          setWhisperLog([]);
+          prevWhisperTargetsRef.current = null;
           stopMic();
           appendLog({ text: `Disconnected: ${data.reason}`, kind: "info" });
           logClient("info", "Connection", `Disconnected: ${data.reason}`);
@@ -2362,6 +2429,30 @@ function AppInner() {
         clientIds: [...whisperClientIds],
       })
     );
+
+    const prev = prevWhisperTargetsRef.current;
+    prevWhisperTargetsRef.current = { channels: new Set(whisperChannelIds), clients: new Set(whisperClientIds) };
+    const wasEmpty = !prev || (prev.channels.size === 0 && prev.clients.size === 0);
+    const isEmpty = whisperChannelIds.size === 0 && whisperClientIds.size === 0;
+    if (wasEmpty && isEmpty) return;
+
+    const describe = () => {
+      const channelNames = [...whisperChannelIds]
+        .map((id) => channels.find((c) => c.id === id)?.name)
+        .filter((n): n is string => Boolean(n));
+      const clientNames = [...whisperClientIds]
+        .map((id) => clients.find((c) => c.id === id)?.name)
+        .filter((n): n is string => Boolean(n));
+      return [...channelNames, ...clientNames].join(", ");
+    };
+
+    const description = isEmpty
+      ? t("whisperHistory.stopped")
+      : t("whisperHistory.started", { targets: describe() });
+    setWhisperLog((prevLog) => [
+      ...prevLog,
+      { id: ++whisperLogIdRef.current, timestamp: Date.now(), description },
+    ]);
   }, [whisperChannelIds, whisperClientIds, connected]);
 
   useEffect(() => {
@@ -2395,6 +2486,22 @@ function AppInner() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [extrasMenuOpen]);
+
+  useEffect(() => {
+    if (!selfMenuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (!selfMenuRef.current?.contains(e.target as Node)) setSelfMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelfMenuOpen(false);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [selfMenuOpen]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -2501,6 +2608,10 @@ function AppInner() {
 
   const handleToggleOutputMuted = () => {
     socketRef.current?.send(JSON.stringify({ type: "setOutputMuted", muted: !outputMutedRef.current }));
+  };
+
+  const handleSetNickname = (newNickname: string) => {
+    socketRef.current?.send(JSON.stringify({ type: "setNickname", nickname: newNickname }));
   };
 
   const handleOutputDeviceChange = async (deviceId: string) => {
@@ -2720,11 +2831,104 @@ function AppInner() {
             </div>
           )}
         </div>
-        {[t("menu.self"), t("menu.rights")].map((item) => (
-          <span key={item} className="ts-menubar-item">
-            {item}
+        <div className="ts-menubar-dropdown" ref={selfMenuRef}>
+          <span
+            className="ts-menubar-item ts-menubar-item-active"
+            onClick={() => setSelfMenuOpen((v) => !v)}
+          >
+            {t("menu.self")}
           </span>
-        ))}
+          {selfMenuOpen && (
+            <div className="ts-menu">
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">🎙️</span>
+                <span className="ts-menu-item-label">{t("menu.self.recordingProfile")}</span>
+              </button>
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">🔊</span>
+                <span className="ts-menu-item-label">{t("menu.self.playbackProfile")}</span>
+              </button>
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">⌨️</span>
+                <span className="ts-menu-item-label">{t("menu.self.hotkeyProfile")}</span>
+              </button>
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">🔔</span>
+                <span className="ts-menu-item-label">{t("menu.self.soundPack")}</span>
+              </button>
+              <div className="ts-menu-separator" />
+              <button
+                className="ts-menu-item"
+                disabled={!connected}
+                onClick={() => {
+                  setAwayDialogMessage("");
+                  setAwayDialogOpen(true);
+                  setSelfMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">💤</span>
+                <span className="ts-menu-item-label">{t("menu.self.setAway")}</span>
+              </button>
+              <button
+                className="ts-menu-item"
+                disabled={!connected}
+                onClick={() => {
+                  void handleToggleMic();
+                  setSelfMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">{micOn ? "🔇" : "🎤"}</span>
+                <span className="ts-menu-item-label">
+                  {micOn ? t("menu.self.disableMic") : t("menu.self.enableMic")}
+                </span>
+              </button>
+              <button
+                className="ts-menu-item"
+                disabled={!connected}
+                onClick={() => {
+                  handleToggleOutputMuted();
+                  setSelfMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">{outputMuted ? "🔊" : "🔇"}</span>
+                <span className="ts-menu-item-label">
+                  {outputMuted ? t("menu.self.unmuteOutput") : t("menu.self.muteOutput")}
+                </span>
+              </button>
+              <div className="ts-menu-separator" />
+              <button
+                className="ts-menu-item"
+                disabled={!connected}
+                onClick={() => {
+                  setNicknameDraft(nickname);
+                  setChangeNicknameOpen(true);
+                  setSelfMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">✎</span>
+                <span className="ts-menu-item-label">{t("menu.self.changeNickname")}</span>
+              </button>
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">🗣️</span>
+                <span className="ts-menu-item-label">{t("menu.self.requestTalkPower")}</span>
+              </button>
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">🖼️</span>
+                <span className="ts-menu-item-label">{t("menu.self.setAvatar")}</span>
+              </button>
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">🔤</span>
+                <span className="ts-menu-item-label">{t("menu.self.setPhoneticNickname")}</span>
+              </button>
+              <div className="ts-menu-separator" />
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">ℹ️</span>
+                <span className="ts-menu-item-label">{t("menu.self.connectionInfo")}</span>
+              </button>
+            </div>
+          )}
+        </div>
+        <span className="ts-menubar-item">{t("menu.rights")}</span>
         <div className="ts-menubar-dropdown" ref={extrasMenuRef}>
           <span
             className="ts-menubar-item ts-menubar-item-active"
@@ -2767,16 +2971,22 @@ function AppInner() {
                 <span className="ts-menu-item-label">{t("menu.extras.inviteFriend")}</span>
               </button>
               <div className="ts-menu-separator" />
-              {[
-                { icon: "🗒️", label: t("menu.extras.whisperLists"), shortcut: "Strg+Umschalt+W" },
-                { icon: "🕓", label: t("menu.extras.whisperHistory"), shortcut: "Strg+Umschalt+H" },
-              ].map((item) => (
-                <button key={item.label} className="ts-menu-item" disabled>
-                  <span className="ts-menu-item-icon">{item.icon}</span>
-                  <span className="ts-menu-item-label">{item.label}</span>
-                  <span className="ts-menu-item-shortcut">{item.shortcut}</span>
-                </button>
-              ))}
+              <button className="ts-menu-item" disabled>
+                <span className="ts-menu-item-icon">🗒️</span>
+                <span className="ts-menu-item-label">{t("menu.extras.whisperLists")}</span>
+                <span className="ts-menu-item-shortcut">Strg+Umschalt+W</span>
+              </button>
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  setWhisperHistoryOpen(true);
+                  setExtrasMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">🕓</span>
+                <span className="ts-menu-item-label">{t("menu.extras.whisperHistory")}</span>
+                <span className="ts-menu-item-shortcut">Strg+Umschalt+H</span>
+              </button>
               <button
                 className="ts-menu-item"
                 onClick={() => {
@@ -3058,6 +3268,15 @@ function AppInner() {
         <ClientLogDialog entries={logEntries} onClose={() => setClientLogOpen(false)} />
       )}
 
+      {whisperHistoryOpen && (
+        <WhisperHistoryDialog
+          serverName={serverName}
+          entries={whisperLog}
+          onClear={() => setWhisperLog([])}
+          onClose={() => setWhisperHistoryOpen(false)}
+        />
+      )}
+
       {awayDialogOpen && (
         <AwayDialog
           message={awayDialogMessage}
@@ -3108,6 +3327,36 @@ function AppInner() {
           <button onClick={() => setConnectError(null)} title={t("connectError.dismiss")}>
             ✕
           </button>
+        </div>
+      )}
+
+      {changeNicknameOpen && (
+        <div className="ts-poke-compose-backdrop" {...nicknameBackdrop}>
+          <div className="ts-poke-compose" onClick={(e) => e.stopPropagation()}>
+            <span>✎ {t("menu.self.changeNickname")}</span>
+            <input
+              autoFocus
+              value={nicknameDraft}
+              onChange={(e) => setNicknameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && nicknameDraft.trim()) {
+                  handleSetNickname(nicknameDraft.trim());
+                  setChangeNicknameOpen(false);
+                }
+                if (e.key === "Escape") setChangeNicknameOpen(false);
+              }}
+            />
+            <button
+              disabled={!nicknameDraft.trim()}
+              onClick={() => {
+                handleSetNickname(nicknameDraft.trim());
+                setChangeNicknameOpen(false);
+              }}
+            >
+              {t("favorites.ok")}
+            </button>
+            <button onClick={() => setChangeNicknameOpen(false)}>{t("favorites.cancel")}</button>
+          </div>
         </div>
       )}
 

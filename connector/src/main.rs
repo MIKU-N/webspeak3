@@ -587,6 +587,11 @@ async fn run(args: Args) -> Result<()> {
 						if let Err(e) = part.send(&mut con) {
 							emit(&Event::Error { message: e.to_string() });
 						}
+					} else if let Some(rest) = l.strip_prefix("nickname ") {
+						let part = con.get_state()?.client_update().set_name(rest.trim());
+						if let Err(e) = part.send(&mut con) {
+							emit(&Event::Error { message: e.to_string() });
+						}
 					} else if let Some(rest) = l.strip_prefix("whisper ") {
 						// Format: "whisper <channelId,channelId,...>;<clientId,clientId,...>"
 						// (either side may be empty, e.g. "whisper 5;" or "whisper ;12,13").

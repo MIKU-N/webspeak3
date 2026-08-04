@@ -114,6 +114,10 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.setOutputMuted(msg.muted);
         break;
       }
+      case "setNickname": {
+        await connection?.setNickname(msg.nickname);
+        break;
+      }
       case "setWhisperTargets": {
         await connection?.setWhisperTargets(msg.channelIds ?? [], msg.clientIds ?? []);
         break;

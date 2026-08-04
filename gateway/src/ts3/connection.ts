@@ -268,6 +268,11 @@ export class Ts3Connection {
     this.child?.stdin.write(`muteoutput ${muted ? "1" : "0"}\n`);
   }
 
+  async setNickname(nickname: string): Promise<void> {
+    const sanitized = nickname.replace(/[\r\n]+/g, " ").trim();
+    if (sanitized) this.child?.stdin.write(`nickname ${sanitized}\n`);
+  }
+
   /** Empty channelIds/clientIds clears whisper mode, returning outgoing
    *  voice to the normal current-channel broadcast. */
   async setWhisperTargets(channelIds: number[], clientIds: number[]): Promise<void> {

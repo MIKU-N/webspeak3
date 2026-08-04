@@ -779,6 +779,31 @@
   width: 760px;
 }
 
+.ts-whisper-history-dialog {
+  width: 560px;
+}
+
+.ts-whisper-history-list {
+  height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.ts-whisper-history-empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.ts-whisper-history-row {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
 .ts-log-level-row {
   flex-wrap: wrap;
 }

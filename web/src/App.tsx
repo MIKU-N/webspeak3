@@ -173,6 +173,27 @@ interface MessagePreset {
   message: string;
 }
 
+/** A saved whisper target selection. Channels/clients are matched by name when
+ *  activated (rather than by id), since ids are only stable for the current
+ *  connection - the same names are what a user would recognize across sessions. */
+interface WhisperList {
+  id: string;
+  name: string;
+  channelNames: string[];
+  clientNames: string[];
+}
+
+const WHISPER_LISTS_KEY = "webspeak3:whisper-lists";
+
+function loadWhisperLists(): WhisperList[] {
+  try {
+    const raw = localStorage.getItem(WHISPER_LISTS_KEY);
+    return raw ? (JSON.parse(raw) as WhisperList[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 function loadAwayPresets(): MessagePreset[] {
   try {
     const raw = localStorage.getItem(AWAY_PRESETS_KEY);
@@ -1129,6 +1150,83 @@ function WhisperHistoryDialog({
   );
 }
 
+function WhisperListsDialog({
+  lists,
+  hasCurrentSelection,
+  onSave,
+  onActivate,
+  onDelete,
+  onClose,
+}: {
+  lists: WhisperList[];
+  hasCurrentSelection: boolean;
+  onSave: (name: string) => void;
+  onActivate: (list: WhisperList) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+  const [nameDraft, setNameDraft] = useState("");
+
+  const handleSave = () => {
+    const name = nameDraft.trim();
+    if (!name || !hasCurrentSelection) return;
+    onSave(name);
+    setNameDraft("");
+  };
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-whisper-lists-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("whisperLists.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          <div className="ts-dialog-row">
+            <input
+              placeholder={t("whisperLists.namePlaceholder")}
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+            />
+            <button disabled={!nameDraft.trim() || !hasCurrentSelection} onClick={handleSave}>
+              {t("whisperLists.saveCurrent")}
+            </button>
+          </div>
+          <ul className="ts-whisper-lists-list">
+            {lists.map((list) => (
+              <li key={list.id} className="ts-whisper-lists-item">
+                <div className="ts-whisper-lists-item-info">
+                  <span className="ts-whisper-lists-item-name">{list.name}</span>
+                  <span className="ts-whisper-lists-item-detail">
+                    {t("whisperLists.itemDetail", {
+                      channels: String(list.channelNames.length),
+                      clients: String(list.clientNames.length),
+                    })}
+                  </span>
+                </div>
+                <div className="ts-whisper-lists-item-actions">
+                  <button onClick={() => onActivate(list)}>{t("whisperLists.activate")}</button>
+                  <button onClick={() => onDelete(list.id)}>{t("whisperLists.delete")}</button>
+                </div>
+              </li>
+            ))}
+            {lists.length === 0 && <li className="ts-whisper-lists-empty">{t("whisperLists.empty")}</li>}
+          </ul>
+        </div>
+        <div className="ts-dialog-buttons">
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ContactsDialog({
   contacts,
   onlineClients,
@@ -2043,6 +2141,8 @@ function AppInner() {
   const logIdRef = useRef(0);
   const [whisperLog, setWhisperLog] = useState<WhisperLogEntry[]>([]);
   const [whisperHistoryOpen, setWhisperHistoryOpen] = useState(false);
+  const [whisperLists, setWhisperLists] = useState<WhisperList[]>(() => loadWhisperLists());
+  const [whisperListsOpen, setWhisperListsOpen] = useState(false);
   const [selfMenuOpen, setSelfMenuOpen] = useState(false);
   const selfMenuRef = useRef<HTMLDivElement | null>(null);
   const [changeNicknameOpen, setChangeNicknameOpen] = useState(false);
@@ -2095,6 +2195,10 @@ function AppInner() {
   useEffect(() => {
     localStorage.setItem(CONTACTS_KEY, JSON.stringify(contacts));
   }, [contacts]);
+
+  useEffect(() => {
+    localStorage.setItem(WHISPER_LISTS_KEY, JSON.stringify(whisperLists));
+  }, [whisperLists]);
 
   const isSenderIgnored = (senderName: string) => {
     const senderClient = clients.find((c) => c.name === senderName);
@@ -2991,6 +3095,26 @@ function AppInner() {
     setWhisperClientIds(new Set());
   };
 
+  const handleSaveWhisperList = (name: string) => {
+    const channelNames = channels.filter((c) => whisperChannelIds.has(c.id)).map((c) => c.name);
+    const clientNames = clients.filter((c) => whisperClientIds.has(c.id)).map((c) => c.name);
+    if (channelNames.length === 0 && clientNames.length === 0) return;
+    setWhisperLists((prev) => [...prev, { id: crypto.randomUUID(), name, channelNames, clientNames }]);
+  };
+
+  const handleActivateWhisperList = (list: WhisperList) => {
+    const nextChannelIds = new Set(
+      channels.filter((c) => list.channelNames.includes(c.name)).map((c) => c.id)
+    );
+    const nextClientIds = new Set(clients.filter((c) => list.clientNames.includes(c.name)).map((c) => c.id));
+    setWhisperChannelIds(nextChannelIds);
+    setWhisperClientIds(nextClientIds);
+  };
+
+  const handleDeleteWhisperList = (id: string) => {
+    setWhisperLists((prev) => prev.filter((list) => list.id !== id));
+  };
+
   const handleClientContextMenu = (
     e: React.MouseEvent,
     clientId: number,
@@ -3272,7 +3396,13 @@ function AppInner() {
                 <span className="ts-menu-item-label">{t("menu.extras.inviteFriend")}</span>
               </button>
               <div className="ts-menu-separator" />
-              <button className="ts-menu-item" disabled>
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  setWhisperListsOpen(true);
+                  setExtrasMenuOpen(false);
+                }}
+              >
                 <span className="ts-menu-item-icon">🗒️</span>
                 <span className="ts-menu-item-label">{t("menu.extras.whisperLists")}</span>
                 <span className="ts-menu-item-shortcut">Strg+Umschalt+W</span>
@@ -3597,6 +3727,17 @@ function AppInner() {
           entries={whisperLog}
           onClear={() => setWhisperLog([])}
           onClose={() => setWhisperHistoryOpen(false)}
+        />
+      )}
+
+      {whisperListsOpen && (
+        <WhisperListsDialog
+          lists={whisperLists}
+          hasCurrentSelection={whisperChannelIds.size > 0 || whisperClientIds.size > 0}
+          onSave={handleSaveWhisperList}
+          onActivate={handleActivateWhisperList}
+          onDelete={handleDeleteWhisperList}
+          onClose={() => setWhisperListsOpen(false)}
         />
       )}
 

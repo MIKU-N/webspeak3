@@ -112,6 +112,14 @@ const translations: Record<Lang, Record<string, string>> = {
     "whisperHistory.clear": "Löschen",
     "whisperHistory.options": "Optionen",
 
+    "whisperLists.title": "Whisperlisten",
+    "whisperLists.namePlaceholder": "Name der Liste",
+    "whisperLists.saveCurrent": "Aktuelle Auswahl speichern",
+    "whisperLists.itemDetail": "{channels} Channel, {clients} Clients",
+    "whisperLists.activate": "Aktivieren",
+    "whisperLists.delete": "Löschen",
+    "whisperLists.empty": "Keine Whisperlisten gespeichert. Wähle Whisper-Ziele aus und speichere sie hier als Liste.",
+
     "menu.self.recordingProfile": "Aufnahmeprofil",
     "menu.self.playbackProfile": "Wiedergabeprofil",
     "menu.self.hotkeyProfile": "Hotkeyprofil",
@@ -418,6 +426,14 @@ const translations: Record<Lang, Record<string, string>> = {
     "whisperHistory.stopped": "Stopped whispering",
     "whisperHistory.clear": "Clear",
     "whisperHistory.options": "Options",
+
+    "whisperLists.title": "Whisper Lists",
+    "whisperLists.namePlaceholder": "List name",
+    "whisperLists.saveCurrent": "Save current selection",
+    "whisperLists.itemDetail": "{channels} channels, {clients} clients",
+    "whisperLists.activate": "Activate",
+    "whisperLists.delete": "Delete",
+    "whisperLists.empty": "No whisper lists saved yet. Select whisper targets and save them here as a list.",
 
     "menu.self.recordingProfile": "Recording Profile",
     "menu.self.playbackProfile": "Playback Profile",

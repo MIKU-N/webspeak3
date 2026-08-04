@@ -908,6 +908,57 @@
   border-bottom: 1px solid var(--border-soft);
 }
 
+.ts-whisper-lists-dialog {
+  width: 480px;
+}
+
+.ts-whisper-lists-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.ts-whisper-lists-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12px;
+}
+
+.ts-whisper-lists-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ts-whisper-lists-item-name {
+  font-weight: 600;
+}
+
+.ts-whisper-lists-item-detail {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.ts-whisper-lists-item-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.ts-whisper-lists-empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
 .ts-log-level-row {
   flex-wrap: wrap;
 }

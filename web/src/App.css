@@ -767,6 +767,106 @@
   width: 420px;
 }
 
+.ts-collected-urls-dialog {
+  width: 700px;
+}
+
+.ts-invite-friend-dialog {
+  width: 520px;
+}
+
+.ts-client-log-dialog {
+  width: 760px;
+}
+
+.ts-log-level-row {
+  flex-wrap: wrap;
+}
+
+.ts-log-list {
+  height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.ts-log-row {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.15rem 0.4rem;
+  border-bottom: 1px solid var(--border-soft);
+  white-space: nowrap;
+}
+
+.ts-log-time {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.ts-log-category {
+  flex-shrink: 0;
+  width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ts-log-level {
+  flex-shrink: 0;
+  width: 60px;
+}
+
+.ts-log-message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ts-log-row-critical .ts-log-level,
+.ts-log-row-error .ts-log-level {
+  color: #e5534b;
+}
+
+.ts-log-row-warning .ts-log-level {
+  color: #e5c34b;
+}
+
+.ts-collected-urls-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  max-height: 360px;
+  display: block;
+  overflow-y: auto;
+}
+
+.ts-collected-urls-table thead,
+.ts-collected-urls-table tbody {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.ts-collected-urls-table th {
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 0.3rem 0.4rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.ts-collected-urls-table td {
+  padding: 0.3rem 0.4rem;
+  border-bottom: 1px solid var(--border-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-collected-urls-table a {
+  color: var(--link, #4ea1f7);
+}
+
 .ts-away-dialog .ts-dialog-row {
   align-items: center;
   justify-content: space-between;

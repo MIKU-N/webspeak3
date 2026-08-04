@@ -107,6 +107,38 @@ function loadFavorites(): Favorite[] {
 
 const AWAY_PRESETS_KEY = "webspeak3:away-presets";
 const DISCONNECT_MESSAGE_KEY = "webspeak3:disconnect-message";
+const COLLECTED_URLS_KEY = "webspeak3:collected-urls";
+
+interface CollectedUrl {
+  url: string;
+  count: number;
+  lastSeen: number;
+  lastSender: string;
+}
+
+function loadCollectedUrls(): CollectedUrl[] {
+  try {
+    const raw = localStorage.getItem(COLLECTED_URLS_KEY);
+    return raw ? (JSON.parse(raw) as CollectedUrl[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+const URL_REGEX = /https?:\/\/[^\s<>"]+/g;
+
+type LogLevel = "critical" | "error" | "warning" | "info" | "debug";
+
+interface ClientLogEntry {
+  id: number;
+  timestamp: number;
+  category: string;
+  level: LogLevel;
+  message: string;
+}
+
+const LOG_LEVELS: LogLevel[] = ["critical", "error", "warning", "info", "debug"];
+const MAX_LOG_ENTRIES = 500;
 
 interface MessagePreset {
   name: string;
@@ -775,6 +807,242 @@ function FavoritesDialog({
             </button>
             <button onClick={onClose}>{t("favorites.cancel")}</button>
             <button onClick={() => onSave(draft)}>{t("favorites.apply")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CollectedUrlsDialog({
+  urls,
+  onClear,
+  onClose,
+}: {
+  urls: CollectedUrl[];
+  onClear: () => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const [search, setSearch] = useState("");
+  const backdrop = useBackdropDismiss(onClose);
+
+  const filtered = urls
+    .filter((u) => u.url.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => b.lastSeen - a.lastSeen);
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-collected-urls-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("collectedUrls.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          <label className="ts-dialog-field">
+            {t("collectedUrls.search")}
+            <input value={search} onChange={(e) => setSearch(e.target.value)} />
+          </label>
+          <table className="ts-collected-urls-table">
+            <thead>
+              <tr>
+                <th>{t("collectedUrls.url")}</th>
+                <th>{t("collectedUrls.count")}</th>
+                <th>{t("collectedUrls.lastSeen")}</th>
+                <th>{t("collectedUrls.mentionedBy")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((u) => (
+                <tr key={u.url}>
+                  <td>
+                    <a href={u.url} target="_blank" rel="noreferrer noopener">
+                      {u.url}
+                    </a>
+                  </td>
+                  <td>{u.count}</td>
+                  <td>{new Date(u.lastSeen).toLocaleString()}</td>
+                  <td>{u.lastSender}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="ts-dialog-buttons">
+          <button onClick={onClear}>{t("collectedUrls.clearList")}</button>
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InviteFriendDialog({
+  host,
+  channelId,
+  onClose,
+}: {
+  host: string;
+  channelId: number | null;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const [includeChannel, setIncludeChannel] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const backdrop = useBackdropDismiss(onClose);
+
+  const link = `ts3server://${host}${includeChannel && channelId !== null ? `?channel=${channelId}` : ""}`;
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-invite-friend-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("inviteFriend.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          <div className="ts-dialog-row">
+            <label className="ts-dialog-field ts-dialog-field-grow">
+              {t("inviteFriend.type")}
+              <select disabled value="ts3server">
+                <option value="ts3server">ts3server link</option>
+              </select>
+            </label>
+            <label className="ts-dialog-checkbox">
+              <input
+                type="checkbox"
+                checked={includeChannel}
+                disabled={channelId === null}
+                onChange={(e) => setIncludeChannel(e.target.checked)}
+              />
+              {t("inviteFriend.includeChannel")}
+            </label>
+          </div>
+          <label className="ts-dialog-field">
+            {t("inviteFriend.link")}
+            <input readOnly value={link} onFocus={(e) => e.target.select()} />
+          </label>
+        </div>
+        <div className="ts-dialog-buttons">
+          <button disabled title={t("clientContext.notSupported")}>
+            {t("inviteFriend.addPermissionKey")}
+          </button>
+          <div className="ts-dialog-buttons-right">
+            <button
+              onClick={() => {
+                void navigator.clipboard.writeText(link);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+            >
+              {copied ? t("inviteFriend.copied") : t("inviteFriend.copyToClipboard")}
+            </button>
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientLogDialog({ entries, onClose }: { entries: ClientLogEntry[]; onClose: () => void }) {
+  const t = useT();
+  const [enabledLevels, setEnabledLevels] = useState<Set<LogLevel>>(new Set(LOG_LEVELS));
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("");
+  const [caseSensitive, setCaseSensitive] = useState(false);
+  const backdrop = useBackdropDismiss(onClose);
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  const toggleLevel = (level: LogLevel) => {
+    setEnabledLevels((prev) => {
+      const next = new Set(prev);
+      if (next.has(level)) next.delete(level);
+      else next.add(level);
+      return next;
+    });
+  };
+
+  const matches = (message: string, needle: string) =>
+    caseSensitive ? message.includes(needle) : message.toLowerCase().includes(needle.toLowerCase());
+
+  const visible = entries
+    .filter((e) => enabledLevels.has(e.level))
+    .filter((e) => !filter || matches(e.message, filter));
+
+  const handleMark = () => {
+    if (!search) return;
+    const idx = visible.findIndex((e) => matches(e.message, search));
+    if (idx >= 0) {
+      const row = listRef.current?.querySelector(`[data-log-id="${visible[idx].id}"]`);
+      row?.scrollIntoView({ block: "center" });
+    }
+  };
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-client-log-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("clientLog.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          <div className="ts-dialog-row ts-log-level-row">
+            {LOG_LEVELS.map((level) => (
+              <label key={level} className="ts-dialog-checkbox">
+                <input
+                  type="checkbox"
+                  checked={enabledLevels.has(level)}
+                  onChange={() => toggleLevel(level)}
+                />
+                {t(`clientLog.level.${level}`)}
+              </label>
+            ))}
+          </div>
+          <div className="ts-log-list" ref={listRef}>
+            {visible.map((e) => (
+              <div key={e.id} data-log-id={e.id} className={`ts-log-row ts-log-row-${e.level}`}>
+                <span className="ts-log-time">{new Date(e.timestamp).toLocaleString()}</span>
+                <span className="ts-log-category">{e.category}</span>
+                <span className="ts-log-level">{t(`clientLog.level.${e.level}`)}</span>
+                <span className="ts-log-message">{e.message}</span>
+              </div>
+            ))}
+          </div>
+          <div className="ts-dialog-row">
+            <label className="ts-dialog-field ts-dialog-field-grow">
+              {t("clientLog.search")}
+              <input value={search} onChange={(e) => setSearch(e.target.value)} />
+            </label>
+            <label className="ts-dialog-checkbox">
+              <input
+                type="checkbox"
+                checked={caseSensitive}
+                onChange={(e) => setCaseSensitive(e.target.checked)}
+              />
+              {t("clientLog.caseSensitive")}
+            </label>
+          </div>
+          <div className="ts-dialog-row">
+            <label className="ts-dialog-field ts-dialog-field-grow">
+              {t("clientLog.filter")}
+              <input value={filter} onChange={(e) => setFilter(e.target.value)} />
+            </label>
+            <button onClick={handleMark}>{t("clientLog.mark")}</button>
+          </div>
+        </div>
+        <div className="ts-dialog-buttons">
+          <div />
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
           </div>
         </div>
       </div>
@@ -1513,6 +1781,17 @@ function AppInner() {
   const [awayDialogMessage, setAwayDialogMessage] = useState("");
   const [awayPresets, setAwayPresets] = useState<MessagePreset[]>(() => loadAwayPresets());
   const [extrasMenuOpen, setExtrasMenuOpen] = useState(false);
+  const [collectedUrls, setCollectedUrls] = useState<CollectedUrl[]>(() => loadCollectedUrls());
+  const [collectedUrlsOpen, setCollectedUrlsOpen] = useState(false);
+  const [inviteFriendOpen, setInviteFriendOpen] = useState(false);
+  const [logEntries, setLogEntries] = useState<ClientLogEntry[]>([]);
+  const [clientLogOpen, setClientLogOpen] = useState(false);
+  const logIdRef = useRef(0);
+
+  const logClient = (level: LogLevel, category: string, message: string) => {
+    const entry: ClientLogEntry = { id: ++logIdRef.current, timestamp: Date.now(), category, level, message };
+    setLogEntries((prev) => [...prev.slice(-(MAX_LOG_ENTRIES - 1)), entry]);
+  };
   const [optionsDialogOpen, setOptionsDialogOpen] = useState(false);
   const [optionsSection, setOptionsSection] = useState<string>(OPTIONS_SECTIONS[0].id);
   const socketRef = useRef<WebSocket | DemoSocket | null>(null);
@@ -1539,6 +1818,28 @@ function AppInner() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: "nearest" });
   }, [chat, serverChat, pmThreads, activeTab]);
+
+  useEffect(() => {
+    localStorage.setItem(COLLECTED_URLS_KEY, JSON.stringify(collectedUrls));
+  }, [collectedUrls]);
+
+  const recordUrlsFromMessage = (message: string, sender: string) => {
+    const found = message.match(URL_REGEX);
+    if (!found) return;
+    const now = Date.now();
+    setCollectedUrls((prev) => {
+      const next = [...prev];
+      for (const url of found) {
+        const idx = next.findIndex((u) => u.url === url);
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], count: next[idx].count + 1, lastSeen: now, lastSender: sender };
+        } else {
+          next.push({ url, count: 1, lastSeen: now, lastSender: sender });
+        }
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const own = clients.find((c) => c.name === nickname) ?? null;
@@ -1718,6 +2019,7 @@ function AppInner() {
     socketRef.current = socket;
 
     socket.onopen = () => {
+      logClient("info", "Connection", `Connecting to ${connectHost}…`);
       socket.send(
         JSON.stringify({
           type: "connect",
@@ -1735,6 +2037,7 @@ function AppInner() {
       const data = JSON.parse(event.data);
       switch (data.type) {
         case "connected":
+          logClient("info", "Connection", `Connected to ${data.serverName}`);
           hasConnectedRef.current = true;
           setConnecting(false);
           setConnectError(null);
@@ -1770,10 +2073,12 @@ function AppInner() {
         }
         case "chatMessage":
           setChat((prev) => [...prev, { from: data.from, message: data.message }]);
+          recordUrlsFromMessage(data.message, data.from);
           if (data.from !== connectNickname) void playSound("message");
           break;
         case "serverMessage":
           setServerChat((prev) => [...prev, { from: data.from, message: data.message }]);
+          recordUrlsFromMessage(data.message, data.from);
           if (data.from !== connectNickname) void playSound("message");
           break;
         case "privateMessage":
@@ -1795,6 +2100,7 @@ function AppInner() {
               },
             };
           });
+          recordUrlsFromMessage(data.message, data.fromSelf ? connectNickname : data.partnerName);
           if (!data.fromSelf) void playSound("message");
           break;
         case "audioOut":
@@ -1866,10 +2172,12 @@ function AppInner() {
           setTalkers(new Set());
           stopMic();
           appendLog({ text: `Disconnected: ${data.reason}`, kind: "info" });
+          logClient("info", "Connection", `Disconnected: ${data.reason}`);
           if (wasConnected) void playSound("disconnect");
           break;
         }
         case "error":
+          logClient("error", "Connection", data.message);
           if (hasConnectedRef.current) {
             appendLog({ text: data.message, kind: "error" });
           } else {
@@ -1881,6 +2189,7 @@ function AppInner() {
     };
 
     socket.onerror = () => {
+      logClient("error", "WebSocket", "WebSocket error (is the gateway running?)");
       if (!hasConnectedRef.current) {
         setConnecting(false);
         setConnectError("Could not reach the gateway - is it running?");
@@ -2428,8 +2737,6 @@ function AppInner() {
               {[
                 { icon: "🪪", label: t("menu.extras.identities"), shortcut: "Strg+I" },
                 { icon: "📇", label: t("menu.extras.contacts"), shortcut: "Strg+Umschalt+O" },
-                { icon: "🔗", label: t("menu.extras.collectedUrls"), shortcut: "Strg+U" },
-                { icon: "🧑‍🤝‍🧑", label: t("menu.extras.inviteFriend") },
               ].map((item) => (
                 <button key={item.label} className="ts-menu-item" disabled>
                   <span className="ts-menu-item-icon">{item.icon}</span>
@@ -2437,11 +2744,32 @@ function AppInner() {
                   {item.shortcut && <span className="ts-menu-item-shortcut">{item.shortcut}</span>}
                 </button>
               ))}
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  setCollectedUrlsOpen(true);
+                  setExtrasMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">🔗</span>
+                <span className="ts-menu-item-label">{t("menu.extras.collectedUrls")}</span>
+                <span className="ts-menu-item-shortcut">Strg+U</span>
+              </button>
+              <button
+                className="ts-menu-item"
+                disabled={!connected}
+                onClick={() => {
+                  setInviteFriendOpen(true);
+                  setExtrasMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">🧑‍🤝‍🧑</span>
+                <span className="ts-menu-item-label">{t("menu.extras.inviteFriend")}</span>
+              </button>
               <div className="ts-menu-separator" />
               {[
                 { icon: "🗒️", label: t("menu.extras.whisperLists"), shortcut: "Strg+Umschalt+W" },
                 { icon: "🕓", label: t("menu.extras.whisperHistory"), shortcut: "Strg+Umschalt+H" },
-                { icon: "📜", label: t("menu.extras.clientLog"), shortcut: "Strg+L" },
               ].map((item) => (
                 <button key={item.label} className="ts-menu-item" disabled>
                   <span className="ts-menu-item-icon">{item.icon}</span>
@@ -2449,6 +2777,17 @@ function AppInner() {
                   <span className="ts-menu-item-shortcut">{item.shortcut}</span>
                 </button>
               ))}
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  setClientLogOpen(true);
+                  setExtrasMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">📜</span>
+                <span className="ts-menu-item-label">{t("menu.extras.clientLog")}</span>
+                <span className="ts-menu-item-shortcut">Strg+L</span>
+              </button>
               <div className="ts-menu-separator" />
               {[
                 { icon: "🚫", label: t("menu.extras.banList"), shortcut: "Strg+Umschalt+B" },
@@ -2697,6 +3036,26 @@ function AppInner() {
           onSave={saveFavorites}
           onClose={() => setFavoritesDialogMode(null)}
         />
+      )}
+
+      {collectedUrlsOpen && (
+        <CollectedUrlsDialog
+          urls={collectedUrls}
+          onClear={() => setCollectedUrls([])}
+          onClose={() => setCollectedUrlsOpen(false)}
+        />
+      )}
+
+      {inviteFriendOpen && (
+        <InviteFriendDialog
+          host={host}
+          channelId={selected?.type === "channel" ? selected.id : null}
+          onClose={() => setInviteFriendOpen(false)}
+        />
+      )}
+
+      {clientLogOpen && (
+        <ClientLogDialog entries={logEntries} onClose={() => setClientLogOpen(false)} />
       )}
 
       {awayDialogOpen && (

@@ -2429,9 +2429,7 @@ function AppInner() {
                 { icon: "🪪", label: t("menu.extras.identities"), shortcut: "Strg+I" },
                 { icon: "📇", label: t("menu.extras.contacts"), shortcut: "Strg+Umschalt+O" },
                 { icon: "🔗", label: t("menu.extras.collectedUrls"), shortcut: "Strg+U" },
-                { icon: "📁", label: t("menu.extras.fileTransfers"), shortcut: "Strg+T" },
                 { icon: "🧑‍🤝‍🧑", label: t("menu.extras.inviteFriend") },
-                { icon: "✉️", label: t("menu.extras.offlineMessages"), shortcut: "Strg+O" },
               ].map((item) => (
                 <button key={item.label} className="ts-menu-item" disabled>
                   <span className="ts-menu-item-icon">{item.icon}</span>
@@ -2476,11 +2474,6 @@ function AppInner() {
                   {item.shortcut && <span className="ts-menu-item-shortcut">{item.shortcut}</span>}
                 </button>
               ))}
-              <div className="ts-menu-separator" />
-              <button className="ts-menu-item" disabled>
-                <span className="ts-menu-item-icon">🟠</span>
-                <span className="ts-menu-item-label">{t("menu.extras.installOverwolf")}</span>
-              </button>
               <div className="ts-menu-separator" />
               <button
                 className="ts-menu-item"

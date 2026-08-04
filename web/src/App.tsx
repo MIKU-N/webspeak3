@@ -18,6 +18,7 @@ import {
   AudioPlayer,
   MicCapture,
   SAMPLE_RATE,
+  encodeWavStereo,
   hasNativeOutputPicker,
   listAudioInputDevices,
   listAudioOutputDevices,
@@ -2068,9 +2069,9 @@ function AppInner() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioPlayerRef = useRef<AudioPlayer | null>(null);
   const micCaptureRef = useRef<MicCapture | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const recordDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const recordSilenceRef = useRef<GainNode | null>(null);
+  const recordChunksRef = useRef<{ left: Float32Array[]; right: Float32Array[] }>({ left: [], right: [] });
   const activeTabRef = useRef<ActiveTab>("channel");
   const hasConnectedRef = useRef(false);
   // Set when a "disconnected" event is received, so the socket's onclose
@@ -2833,51 +2834,75 @@ function AppInner() {
   // Connects the current mic (if any) into the active recording, so a device
   // switch or a mic (re)start mid-recording doesn't silently drop it from the mix.
   const connectMicToRecorder = () => {
-    const dest = recordDestRef.current;
+    const processor = recordProcessorRef.current;
     const source = micCaptureRef.current?.getSourceNode();
-    if (dest && source) source.connect(dest);
+    if (processor && source) source.connect(processor);
   };
 
   const startRecording = () => {
-    if (recorderRef.current) return;
+    if (recordProcessorRef.current) return;
     const audioContext = ensureAudioContext();
-    const dest = audioContext.createMediaStreamDestination();
-    recordDestRef.current = dest;
-    audioPlayerRef.current?.getInputNode().connect(dest);
+    // Captures raw PCM via a ScriptProcessorNode (rather than MediaRecorder) so the
+    // download can be an uncompressed WAV instead of a browser-codec-dependent webm/ogg.
+    const processor = audioContext.createScriptProcessor(4096, 2, 2);
+    const silence = audioContext.createGain();
+    silence.gain.value = 0;
+    recordChunksRef.current = { left: [], right: [] };
+    processor.onaudioprocess = (event) => {
+      const left = event.inputBuffer.getChannelData(0);
+      const right = event.inputBuffer.numberOfChannels > 1 ? event.inputBuffer.getChannelData(1) : left;
+      recordChunksRef.current.left.push(left.slice());
+      recordChunksRef.current.right.push(right.slice());
+    };
+    // A ScriptProcessorNode only fires while connected to a destination; route
+    // through a muted gain node so the recording tap isn't also heard.
+    processor.connect(silence);
+    silence.connect(audioContext.destination);
+    recordProcessorRef.current = processor;
+    recordSilenceRef.current = silence;
+    audioPlayerRef.current?.getInputNode().connect(processor);
     connectMicToRecorder();
 
-    recordedChunksRef.current = [];
-    const recorder = new MediaRecorder(dest.stream);
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) recordedChunksRef.current.push(event.data);
-    };
-    recorder.onstop = () => {
-      const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || "audio/webm" });
-      recordedChunksRef.current = [];
-      const extension = blob.type.includes("ogg") ? "ogg" : "webm";
-      const safeServerName = (serverName || "session").replace(/[\\/:*?"<>|]+/g, "_").trim() || "session";
-      const filename = `webspeak3-${safeServerName}-${new Date().toISOString().replace(/[:.]/g, "-")}.${extension}`;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      logClient("info", "Recording", `Saved recording as ${filename}`);
-    };
-    recorder.start();
-    recorderRef.current = recorder;
     setRecording(true);
     logClient("info", "Recording", "Started local recording");
   };
 
   const stopRecording = () => {
-    recorderRef.current?.stop();
-    recorderRef.current = null;
-    recordDestRef.current = null;
+    const processor = recordProcessorRef.current;
+    if (!processor) return;
+    processor.onaudioprocess = null;
+    processor.disconnect();
+    recordSilenceRef.current?.disconnect();
+    recordProcessorRef.current = null;
+    recordSilenceRef.current = null;
     setRecording(false);
+
+    const { left, right } = recordChunksRef.current;
+    recordChunksRef.current = { left: [], right: [] };
+    const totalFrames = left.reduce((sum, chunk) => sum + chunk.length, 0);
+    if (totalFrames === 0) return;
+
+    const mergedLeft = new Float32Array(totalFrames);
+    const mergedRight = new Float32Array(totalFrames);
+    let offset = 0;
+    for (let i = 0; i < left.length; i++) {
+      mergedLeft.set(left[i], offset);
+      mergedRight.set(right[i], offset);
+      offset += left[i].length;
+    }
+
+    const blob = encodeWavStereo(mergedLeft, mergedRight, audioContextRef.current?.sampleRate ?? SAMPLE_RATE);
+    const safeServerName = (serverName || "session").replace(/[\\/:*?"<>|]+/g, "_").trim() || "session";
+    const filename = `webspeak3-${safeServerName}-${new Date().toISOString().replace(/[:.]/g, "-")}.wav`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    logClient("info", "Recording", `Saved recording as ${filename}`);
   };
 
   const handleSetNickname = (newNickname: string) => {

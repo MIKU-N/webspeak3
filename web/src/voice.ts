@@ -171,6 +171,45 @@ export class MicCapture {
   }
 }
 
+function writeAsciiString(view: DataView, offset: number, text: string): void {
+  for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
+}
+
+/** Encodes raw stereo float samples (range -1..1) as an uncompressed 16-bit PCM WAV file. */
+export function encodeWavStereo(left: Float32Array, right: Float32Array, sampleRate: number): Blob {
+  const numChannels = 2;
+  const bytesPerSample = 2;
+  const blockAlign = numChannels * bytesPerSample;
+  const dataSize = left.length * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  writeAsciiString(view, 0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeAsciiString(view, 8, "WAVE");
+  writeAsciiString(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);
+  writeAsciiString(view, 36, "data");
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  for (let i = 0; i < left.length; i++) {
+    const l = Math.max(-1, Math.min(1, left[i]));
+    const r = Math.max(-1, Math.min(1, right[i]));
+    view.setInt16(offset, l < 0 ? l * 0x8000 : l * 0x7fff, true);
+    view.setInt16(offset + 2, r < 0 ? r * 0x8000 : r * 0x7fff, true);
+    offset += blockAlign;
+  }
+
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
 /** Output ("audiooutput") devices available for playback, e.g. for a device picker. */
 export async function listAudioOutputDevices(): Promise<MediaDeviceInfo[]> {
   if (!navigator.mediaDevices) return [];

@@ -2049,6 +2049,7 @@ function AppInner() {
   const nicknameBackdrop = useBackdropDismiss(() => setChangeNicknameOpen(false));
   const [contacts, setContacts] = useState<Contact[]>(() => loadContacts());
   const [contactsOpen, setContactsOpen] = useState(false);
+  const [recording, setRecording] = useState(false);
   const whisperLogIdRef = useRef(0);
   const prevWhisperTargetsRef = useRef<{ channels: Set<number>; clients: Set<number> } | null>(null);
 
@@ -2067,6 +2068,9 @@ function AppInner() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioPlayerRef = useRef<AudioPlayer | null>(null);
   const micCaptureRef = useRef<MicCapture | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
   const activeTabRef = useRef<ActiveTab>("channel");
   const hasConnectedRef = useRef(false);
   // Set when a "disconnected" event is received, so the socket's onclose
@@ -2266,6 +2270,7 @@ function AppInner() {
         previousSocket.close();
       }
       stopMic();
+      stopRecording();
       audioPlayerRef.current?.dispose();
       audioPlayerRef.current = null;
       audioContextRef.current?.close();
@@ -2450,6 +2455,7 @@ function AppInner() {
           setWhisperLog([]);
           prevWhisperTargetsRef.current = null;
           stopMic();
+          stopRecording();
           appendLog({ text: `Disconnected: ${data.reason}`, kind: "info" });
           logClient("info", "Connection", `Disconnected: ${data.reason}`);
           if (wasConnected) void playSound("disconnect");
@@ -2484,6 +2490,7 @@ function AppInner() {
       cleanDisconnectRef.current = false;
       setConnected(false);
       stopMic();
+      stopRecording();
       audioPlayerRef.current?.dispose();
       audioPlayerRef.current = null;
       audioContextRef.current?.close();
@@ -2761,6 +2768,7 @@ function AppInner() {
       setMicOn(true);
       refreshOutputDevices();
       refreshInputDevices();
+      connectMicToRecorder();
     } catch (error) {
       appendLog({ text: `Microphone error: ${(error as Error).message}`, kind: "error" });
     }
@@ -2820,6 +2828,56 @@ function AppInner() {
 
   const handleToggleOutputMuted = () => {
     socketRef.current?.send(JSON.stringify({ type: "setOutputMuted", muted: !outputMutedRef.current }));
+  };
+
+  // Connects the current mic (if any) into the active recording, so a device
+  // switch or a mic (re)start mid-recording doesn't silently drop it from the mix.
+  const connectMicToRecorder = () => {
+    const dest = recordDestRef.current;
+    const source = micCaptureRef.current?.getSourceNode();
+    if (dest && source) source.connect(dest);
+  };
+
+  const startRecording = () => {
+    if (recorderRef.current) return;
+    const audioContext = ensureAudioContext();
+    const dest = audioContext.createMediaStreamDestination();
+    recordDestRef.current = dest;
+    audioPlayerRef.current?.getInputNode().connect(dest);
+    connectMicToRecorder();
+
+    recordedChunksRef.current = [];
+    const recorder = new MediaRecorder(dest.stream);
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) recordedChunksRef.current.push(event.data);
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+      recordedChunksRef.current = [];
+      const extension = blob.type.includes("ogg") ? "ogg" : "webm";
+      const safeServerName = (serverName || "session").replace(/[\\/:*?"<>|]+/g, "_").trim() || "session";
+      const filename = `webspeak3-${safeServerName}-${new Date().toISOString().replace(/[:.]/g, "-")}.${extension}`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      logClient("info", "Recording", `Saved recording as ${filename}`);
+    };
+    recorder.start();
+    recorderRef.current = recorder;
+    setRecording(true);
+    logClient("info", "Recording", "Started local recording");
+  };
+
+  const stopRecording = () => {
+    recorderRef.current?.stop();
+    recorderRef.current = null;
+    recordDestRef.current = null;
+    setRecording(false);
   };
 
   const handleSetNickname = (newNickname: string) => {
@@ -3230,17 +3288,34 @@ function AppInner() {
                 </button>
               ))}
               <div className="ts-menu-separator" />
-              {[
-                { icon: "🔴", label: t("menu.extras.startRecording"), shortcut: "Strg+Umschalt+R" },
-                { icon: "🔴", label: t("menu.extras.startMultitrackRecording") },
-                { icon: "⏹️", label: t("menu.extras.stopRecording"), shortcut: "Strg+Umschalt+T" },
-              ].map((item) => (
-                <button key={item.label} className="ts-menu-item" disabled>
-                  <span className="ts-menu-item-icon">{item.icon}</span>
-                  <span className="ts-menu-item-label">{item.label}</span>
-                  {item.shortcut && <span className="ts-menu-item-shortcut">{item.shortcut}</span>}
-                </button>
-              ))}
+              <button
+                className="ts-menu-item"
+                disabled={recording}
+                onClick={() => {
+                  startRecording();
+                  setExtrasMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">🔴</span>
+                <span className="ts-menu-item-label">{t("menu.extras.startRecording")}</span>
+                <span className="ts-menu-item-shortcut">Strg+Umschalt+R</span>
+              </button>
+              <button className="ts-menu-item" disabled>
+                <span className="ts-menu-item-icon">🔴</span>
+                <span className="ts-menu-item-label">{t("menu.extras.startMultitrackRecording")}</span>
+              </button>
+              <button
+                className="ts-menu-item"
+                disabled={!recording}
+                onClick={() => {
+                  stopRecording();
+                  setExtrasMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">⏹️</span>
+                <span className="ts-menu-item-label">{t("menu.extras.stopRecording")}</span>
+                <span className="ts-menu-item-shortcut">Strg+Umschalt+T</span>
+              </button>
               <div className="ts-menu-separator" />
               <button
                 className="ts-menu-item"
@@ -3422,6 +3497,11 @@ function AppInner() {
                 ))}
               </select>
             </label>
+          )}
+          {recording && (
+            <button className="ts-icon-button ts-recording-on" onClick={stopRecording} title={t("menu.extras.stopRecording")}>
+              🔴
+            </button>
           )}
           <span className="ts-toolbar-sep" />
           <button

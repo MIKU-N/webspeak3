@@ -134,6 +134,11 @@ export class MicCapture {
     this.silence.connect(this.context.destination);
   }
 
+  /** The raw mic input node, e.g. to additionally route it into a recorder. */
+  getSourceNode(): AudioNode | null {
+    return this.source;
+  }
+
   /** Routes the raw mic signal to `destination` too, so you can hear yourself (a mic test), until disabled again. */
   setMonitoring(enabled: boolean, destination: AudioNode): void {
     if (!this.source) return;

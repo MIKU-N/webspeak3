@@ -541,6 +541,20 @@
   background: color-mix(in srgb, var(--log-error) 30%, var(--button-bg-1)) !important;
 }
 
+.ts-recording-on {
+  background: color-mix(in srgb, var(--log-error) 35%, var(--button-bg-1)) !important;
+  animation: ts-recording-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ts-recording-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
 .ts-client-away-message {
   color: var(--text-muted);
   font-style: italic;

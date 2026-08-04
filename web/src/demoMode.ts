@@ -167,6 +167,40 @@ export class DemoSocket {
         );
         break;
       }
+      case "getClientConnectionInfo": {
+        this.after(400, () =>
+          this.emit({
+            type: "clientConnectionInfo",
+            clientId: msg.clientId,
+            pingMs: 12.4,
+            connectedSecs: 217,
+            ip: msg.clientId === SELF_ID ? "127.0.0.1" : null,
+            packetsSent: 4213,
+            bytesSent: 512_340,
+            packetsReceived: 3987,
+            bytesReceived: 498_120,
+            packetLossPercent: 0,
+          })
+        );
+        break;
+      }
+      case "getServerConnectionInfo": {
+        this.after(400, () =>
+          this.emit({
+            type: "serverConnectionInfo",
+            pingMs: 8.1,
+            connectedSecs: 217,
+            packetLossPercent: 0,
+            packetsSentTotal: 21_004,
+            bytesSentTotal: 2_411_000,
+            packetsReceivedTotal: 19_872,
+            bytesReceivedTotal: 2_198_500,
+            bandwidthSentLastSecond: 4200,
+            bandwidthReceivedLastSecond: 3900,
+          })
+        );
+        break;
+      }
       // "disconnect" is intentionally unhandled here: handleDisconnect() in
       // App.tsx always calls socket.close() right after sending it, and
       // close() already emits the "disconnected" event below.

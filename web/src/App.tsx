@@ -282,6 +282,50 @@ interface ClientInfo {
   uid: string;
 }
 
+interface ClientConnectionInfoData {
+  clientId: number;
+  pingMs: number | null;
+  connectedSecs: number | null;
+  ip: string | null;
+  packetsSent: number;
+  bytesSent: number;
+  packetsReceived: number;
+  bytesReceived: number;
+  packetLossPercent: number;
+}
+
+interface ServerConnectionInfoData {
+  pingMs: number;
+  connectedSecs: number;
+  packetLossPercent: number;
+  packetsSentTotal: number;
+  bytesSentTotal: number;
+  packetsReceivedTotal: number;
+  bytesReceivedTotal: number;
+  bandwidthSentLastSecond: number;
+  bandwidthReceivedLastSecond: number;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+  return `${value.toFixed(1)} ${units[unitIndex]}`;
+}
+
+function formatDurationSecs(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`;
+}
+
 /** Converts an ISO 3166-1 alpha-2 country code (e.g. "DE") to its flag emoji
  *  via Unicode regional indicator symbols. Returns null for codes the server
  *  doesn't report (empty string - common when geo-IP isn't configured). */
@@ -447,6 +491,7 @@ function InfoPanel({
   totalClientCount,
   channels,
   clients,
+  onShowServerConnectionInfo,
 }: {
   selected: SelectedItem | null;
   host: string;
@@ -457,6 +502,7 @@ function InfoPanel({
   totalClientCount: number;
   channels: ChannelInfo[];
   clients: ClientInfo[];
+  onShowServerConnectionInfo: () => void;
 }) {
   const t = useT();
   if (!selected || selected.type === "server") {
@@ -485,6 +531,9 @@ function InfoPanel({
         <div className="ts-info-row">
           <span>{t("info.currentChannels")}</span> <span>{channels.length}</span>
         </div>
+        <button className="ts-info-connection-link" onClick={onShowServerConnectionInfo}>
+          🔌 {t("connectionInfo.serverTitle")}
+        </button>
       </div>
     );
   }
@@ -1260,6 +1309,139 @@ function WhisperListsDialog({
             ))}
             {lists.length === 0 && <li className="ts-whisper-lists-empty">{t("whisperLists.empty")}</li>}
           </ul>
+        </div>
+        <div className="ts-dialog-buttons">
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientConnectionInfoDialog({
+  clientName,
+  info,
+  onClose,
+}: {
+  clientName: string;
+  info: ClientConnectionInfoData | null;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+  // The server may silently decline (e.g. missing permission to view another
+  // client's connection info) without ever replying - fall back to an error
+  // instead of spinning forever.
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    setTimedOut(false);
+    if (info) return;
+    const id = window.setTimeout(() => setTimedOut(true), 6000);
+    return () => window.clearTimeout(id);
+  }, [info, clientName]);
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-connection-info-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("connectionInfo.clientTitle", { name: clientName })}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          {!info ? (
+            <div className="ts-connection-info-loading">
+              {timedOut ? t("connectionInfo.unavailable") : t("connectionInfo.loading")}
+            </div>
+          ) : (
+            <div className="ts-connection-info-grid">
+              <span>{t("connectionInfo.ping")}</span>
+              <span>{info.pingMs != null ? `${info.pingMs.toFixed(1)} ms` : "-"}</span>
+              <span>{t("connectionInfo.connectedSince")}</span>
+              <span>{info.connectedSecs != null ? formatDurationSecs(info.connectedSecs) : "-"}</span>
+              <span>{t("connectionInfo.ip")}</span>
+              <span>{info.ip ?? "-"}</span>
+              <span>{t("connectionInfo.packetLoss")}</span>
+              <span>{info.packetLossPercent.toFixed(2)}%</span>
+              <span>{t("connectionInfo.packetsSent")}</span>
+              <span>{info.packetsSent.toLocaleString()}</span>
+              <span>{t("connectionInfo.packetsReceived")}</span>
+              <span>{info.packetsReceived.toLocaleString()}</span>
+              <span>{t("connectionInfo.bytesSent")}</span>
+              <span>{formatBytes(info.bytesSent)}</span>
+              <span>{t("connectionInfo.bytesReceived")}</span>
+              <span>{formatBytes(info.bytesReceived)}</span>
+            </div>
+          )}
+        </div>
+        <div className="ts-dialog-buttons">
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ServerConnectionInfoDialog({
+  info,
+  onClose,
+}: {
+  info: ServerConnectionInfoData | null;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+  // The server may silently decline (e.g. missing b_virtualserver_connectioninfo_view
+  // permission) without ever replying - fall back to an error instead of spinning forever.
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    setTimedOut(false);
+    if (info) return;
+    const id = window.setTimeout(() => setTimedOut(true), 6000);
+    return () => window.clearTimeout(id);
+  }, [info]);
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-connection-info-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("connectionInfo.serverTitle")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          {!info ? (
+            <div className="ts-connection-info-loading">
+              {timedOut ? t("connectionInfo.unavailable") : t("connectionInfo.loading")}
+            </div>
+          ) : (
+            <div className="ts-connection-info-grid">
+              <span>{t("connectionInfo.ping")}</span>
+              <span>{info.pingMs.toFixed(1)} ms</span>
+              <span>{t("connectionInfo.connectedSince")}</span>
+              <span>{formatDurationSecs(info.connectedSecs)}</span>
+              <span>{t("connectionInfo.packetLoss")}</span>
+              <span>{info.packetLossPercent.toFixed(2)}%</span>
+              <span>{t("connectionInfo.packetsSent")}</span>
+              <span>{info.packetsSentTotal.toLocaleString()}</span>
+              <span>{t("connectionInfo.packetsReceived")}</span>
+              <span>{info.packetsReceivedTotal.toLocaleString()}</span>
+              <span>{t("connectionInfo.bytesSent")}</span>
+              <span>{formatBytes(info.bytesSentTotal)}</span>
+              <span>{t("connectionInfo.bytesReceived")}</span>
+              <span>{formatBytes(info.bytesReceivedTotal)}</span>
+              <span>{t("connectionInfo.bandwidthSent")}</span>
+              <span>{formatBytes(info.bandwidthSentLastSecond)}/s</span>
+              <span>{t("connectionInfo.bandwidthReceived")}</span>
+              <span>{formatBytes(info.bandwidthReceivedLastSecond)}/s</span>
+            </div>
+          )}
         </div>
         <div className="ts-dialog-buttons">
           <div className="ts-dialog-buttons-right">
@@ -2265,6 +2447,12 @@ function AppInner() {
     localStorage.getItem(ACTIVE_IDENTITY_KEY)
   );
   const [identitiesOpen, setIdentitiesOpen] = useState(false);
+  const [clientConnectionInfoTarget, setClientConnectionInfoTarget] = useState<{ id: number; name: string } | null>(
+    null
+  );
+  const [clientConnectionInfo, setClientConnectionInfo] = useState<ClientConnectionInfoData | null>(null);
+  const [serverConnectionInfoOpen, setServerConnectionInfoOpen] = useState(false);
+  const [serverConnectionInfo, setServerConnectionInfo] = useState<ServerConnectionInfoData | null>(null);
   const [selfMenuOpen, setSelfMenuOpen] = useState(false);
   const selfMenuRef = useRef<HTMLDivElement | null>(null);
   const [changeNicknameOpen, setChangeNicknameOpen] = useState(false);
@@ -2711,6 +2899,32 @@ function AppInner() {
             setConnecting(false);
             setConnectError(data.message);
           }
+          break;
+        case "clientConnectionInfo":
+          setClientConnectionInfo({
+            clientId: data.clientId,
+            pingMs: data.pingMs,
+            connectedSecs: data.connectedSecs,
+            ip: data.ip,
+            packetsSent: data.packetsSent,
+            bytesSent: data.bytesSent,
+            packetsReceived: data.packetsReceived,
+            bytesReceived: data.bytesReceived,
+            packetLossPercent: data.packetLossPercent,
+          });
+          break;
+        case "serverConnectionInfo":
+          setServerConnectionInfo({
+            pingMs: data.pingMs,
+            connectedSecs: data.connectedSecs,
+            packetLossPercent: data.packetLossPercent,
+            packetsSentTotal: data.packetsSentTotal,
+            bytesSentTotal: data.bytesSentTotal,
+            packetsReceivedTotal: data.packetsReceivedTotal,
+            bytesReceivedTotal: data.bytesReceivedTotal,
+            bandwidthSentLastSecond: data.bandwidthSentLastSecond,
+            bandwidthReceivedLastSecond: data.bandwidthReceivedLastSecond,
+          });
           break;
       }
     };
@@ -3270,6 +3484,18 @@ function AppInner() {
     });
   };
 
+  const handleShowClientConnectionInfo = (clientId: number, clientName: string) => {
+    setClientConnectionInfoTarget({ id: clientId, name: clientName });
+    setClientConnectionInfo(null);
+    socketRef.current?.send(JSON.stringify({ type: "getClientConnectionInfo", clientId }));
+  };
+
+  const handleShowServerConnectionInfo = () => {
+    setServerConnectionInfoOpen(true);
+    setServerConnectionInfo(null);
+    socketRef.current?.send(JSON.stringify({ type: "getServerConnectionInfo" }));
+  };
+
   const handleClientContextMenu = (
     e: React.MouseEvent,
     clientId: number,
@@ -3495,7 +3721,14 @@ function AppInner() {
                 <span className="ts-menu-item-label">{t("menu.self.setPhoneticNickname")}</span>
               </button>
               <div className="ts-menu-separator" />
-              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+              <button
+                className="ts-menu-item"
+                disabled={!ownClient}
+                onClick={() => {
+                  if (ownClient) handleShowClientConnectionInfo(ownClient.id, ownClient.name);
+                  setSelfMenuOpen(false);
+                }}
+              >
                 <span className="ts-menu-item-icon">ℹ️</span>
                 <span className="ts-menu-item-label">{t("menu.self.connectionInfo")}</span>
               </button>
@@ -3917,6 +4150,21 @@ function AppInner() {
         />
       )}
 
+      {clientConnectionInfoTarget && (
+        <ClientConnectionInfoDialog
+          clientName={clientConnectionInfoTarget.name}
+          info={clientConnectionInfo?.clientId === clientConnectionInfoTarget.id ? clientConnectionInfo : null}
+          onClose={() => setClientConnectionInfoTarget(null)}
+        />
+      )}
+
+      {serverConnectionInfoOpen && (
+        <ServerConnectionInfoDialog
+          info={serverConnectionInfo}
+          onClose={() => setServerConnectionInfoOpen(false)}
+        />
+      )}
+
       {contactsOpen && (
         <ContactsDialog
           contacts={contacts}
@@ -4086,6 +4334,16 @@ function AppInner() {
             <span className="ts-menu-item-icon">📋</span>
             <span className="ts-menu-item-label">{t("clientContext.copyName")}</span>
           </button>
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              handleShowClientConnectionInfo(clientContextMenu.clientId, clientContextMenu.clientName);
+              setClientContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">🔌</span>
+            <span className="ts-menu-item-label">{t("clientContext.connectionInfo")}</span>
+          </button>
           {!clientContextMenu.isSelf && (
             <button
               className="ts-menu-item"
@@ -4177,6 +4435,7 @@ function AppInner() {
                 totalClientCount={clients.length}
                 channels={channels}
                 clients={clients}
+                onShowServerConnectionInfo={handleShowServerConnectionInfo}
               />
             )}
           </div>

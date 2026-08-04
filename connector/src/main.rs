@@ -146,6 +146,34 @@ enum Event {
 		#[serde(flatten)]
 		entry: ServerLogEntry,
 	},
+	/// Reply to a "clientconninfo <id>" request - live stats for one client's
+	/// connection (ping, packet loss, bytes/packets sent+received).
+	#[serde(rename = "clientConnectionInfo")]
+	ClientConnectionInfo {
+		client_id: u16,
+		ping_ms: Option<f64>,
+		connected_secs: Option<i64>,
+		ip: Option<String>,
+		packets_sent: u64,
+		bytes_sent: u64,
+		packets_received: u64,
+		bytes_received: u64,
+		packet_loss_percent: f32,
+	},
+	/// Reply to a "serverconninfo" request - aggregate connection stats for
+	/// the whole server-side link.
+	#[serde(rename = "serverConnectionInfo")]
+	ServerConnectionInfo {
+		ping_ms: f64,
+		connected_secs: i64,
+		packet_loss_percent: f32,
+		packets_sent_total: u64,
+		bytes_sent_total: u64,
+		packets_received_total: u64,
+		bytes_received_total: u64,
+		bandwidth_sent_last_second: u64,
+		bandwidth_received_last_second: u64,
+	},
 }
 
 fn emit(event: &Event) {
@@ -452,6 +480,11 @@ async fn run(args: Args) -> Result<()> {
 	// stdin command, cleared via "unwhisper".
 	let mut whisper_channels: Vec<u64> = Vec::new();
 	let mut whisper_clients: Vec<u16> = Vec::new();
+	// Set by "clientconninfo"/"serverconninfo" while waiting for the server's
+	// reply to land in book state (it arrives async as a later BookEvents
+	// batch, not as a direct command result) - checked and emitted below.
+	let mut pending_client_conninfo: Option<ClientId> = None;
+	let mut pending_server_conninfo = false;
 
 	enum LoopOutcome {
 		StdinLine(std::io::Result<Option<String>>),
@@ -605,6 +638,39 @@ async fn run(args: Args) -> Result<()> {
 					} else if l == "unwhisper" {
 						whisper_channels.clear();
 						whisper_clients.clear();
+					} else if let Some(rest) = l.strip_prefix("clientconninfo ") {
+						match rest.trim().parse::<u16>() {
+							Ok(id) => {
+								let client_id = ClientId(id);
+								let part = con.get_state()?.clients.get(&client_id).map(|c| c.connection_info());
+								match part {
+									// send_with_result (rather than send) so a missing-permission
+									// rejection (e.g. viewing another client's connection info
+									// without b_client_view_connection_info) surfaces as a visible
+									// error instead of leaving the dialog stuck loading forever.
+									Some(part) => match part.send_with_result(&mut con) {
+										Ok(handle) => {
+											pending_client_conninfo = Some(client_id);
+											pending_messages.insert(handle, "Connection info".into());
+										}
+										Err(e) => emit(&Event::Error { message: e.to_string() }),
+									},
+									None => {
+										emit(&Event::Error { message: format!("Unknown client id: {id}") })
+									}
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid client id: {rest}") }),
+						}
+					} else if l == "serverconninfo" {
+						let part = con.get_state()?.server.connection_info();
+						match part.send_with_result(&mut con) {
+							Ok(handle) => {
+								pending_server_conninfo = true;
+								pending_messages.insert(handle, "Server connection info".into());
+							}
+							Err(e) => emit(&Event::Error { message: e.to_string() }),
+						}
 					} else if let Some(b64) = l.strip_prefix("audio ") {
 						match base64::engine::general_purpose::STANDARD.decode(b64.trim()) {
 							Ok(bytes) => {
@@ -702,6 +768,51 @@ async fn run(args: Args) -> Result<()> {
 							}
 						} else {
 							log_book_event(con.get_state()?, event);
+						}
+					}
+					if let Some(client_id) = pending_client_conninfo {
+						match con.get_state()?.clients.get(&client_id) {
+							Some(client) => {
+								if let Some(data) = &client.connection_data {
+									emit(&Event::ClientConnectionInfo {
+										client_id: client_id.0,
+										ping_ms: data.ping.map(|d| d.as_seconds_f64() * 1000.0),
+										connected_secs: data.connected_time.map(|d| d.whole_seconds()),
+										ip: data.client_address.map(|a| a.ip().to_string()),
+										packets_sent: data.packets_sent_speech.unwrap_or(0)
+											+ data.packets_sent_keepalive.unwrap_or(0)
+											+ data.packets_sent_control.unwrap_or(0),
+										bytes_sent: data.bytes_sent_speech.unwrap_or(0)
+											+ data.bytes_sent_keepalive.unwrap_or(0)
+											+ data.bytes_sent_control.unwrap_or(0),
+										packets_received: data.packets_received_speech.unwrap_or(0)
+											+ data.packets_received_keepalive.unwrap_or(0)
+											+ data.packets_received_control.unwrap_or(0),
+										bytes_received: data.bytes_received_speech.unwrap_or(0)
+											+ data.bytes_received_keepalive.unwrap_or(0)
+											+ data.bytes_received_control.unwrap_or(0),
+										packet_loss_percent: data.client_to_server_packetloss_total,
+									});
+									pending_client_conninfo = None;
+								}
+							}
+							None => pending_client_conninfo = None,
+						}
+					}
+					if pending_server_conninfo {
+						if let Some(data) = &con.get_state()?.server.connection_data {
+							emit(&Event::ServerConnectionInfo {
+								ping_ms: data.ping.as_seconds_f64() * 1000.0,
+								connected_secs: data.connected_time_total.whole_seconds(),
+								packet_loss_percent: data.packetloss_total,
+								packets_sent_total: data.packets_sent_total,
+								bytes_sent_total: data.bytes_sent_total,
+								packets_received_total: data.packets_received_total,
+								bytes_received_total: data.bytes_received_total,
+								bandwidth_sent_last_second: data.bandwidth_sent_last_second_total,
+								bandwidth_received_last_second: data.bandwidth_received_last_second_total,
+							});
+							pending_server_conninfo = false;
 						}
 					}
 					emit(&snapshot(con.get_state()?));

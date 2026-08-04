@@ -122,6 +122,14 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.setWhisperTargets(msg.channelIds ?? [], msg.clientIds ?? []);
         break;
       }
+      case "getClientConnectionInfo": {
+        await connection?.getClientConnectionInfo(msg.clientId);
+        break;
+      }
+      case "getServerConnectionInfo": {
+        await connection?.getServerConnectionInfo();
+        break;
+      }
       case "disconnect": {
         await connection?.disconnect(msg.message ?? "");
         break;

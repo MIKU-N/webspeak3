@@ -66,7 +66,31 @@ export type Ts3ConnectionEvent =
   | { type: "talkers"; clients: number[] }
   | { type: "disconnected"; reason: string }
   | { type: "error"; message: string }
-  | ({ type: "serverLog" } & ServerLogEntry);
+  | ({ type: "serverLog" } & ServerLogEntry)
+  | {
+      type: "clientConnectionInfo";
+      clientId: number;
+      pingMs: number | null;
+      connectedSecs: number | null;
+      ip: string | null;
+      packetsSent: number;
+      bytesSent: number;
+      packetsReceived: number;
+      bytesReceived: number;
+      packetLossPercent: number;
+    }
+  | {
+      type: "serverConnectionInfo";
+      pingMs: number;
+      connectedSecs: number;
+      packetLossPercent: number;
+      packetsSentTotal: number;
+      bytesSentTotal: number;
+      packetsReceivedTotal: number;
+      bytesReceivedTotal: number;
+      bandwidthSentLastSecond: number;
+      bandwidthReceivedLastSecond: number;
+    };
 
 export interface Ts3ConnectOptions {
   host: string;
@@ -157,7 +181,31 @@ export class Ts3Connection {
           | { type: "talkers"; clients: number[] }
           | { type: "disconnected"; reason: string }
           | { type: "error"; message: string }
-          | ({ type: "serverLog" } & ServerLogEntry);
+          | ({ type: "serverLog" } & ServerLogEntry)
+          | {
+              type: "clientConnectionInfo";
+              client_id: number;
+              ping_ms: number | null;
+              connected_secs: number | null;
+              ip: string | null;
+              packets_sent: number;
+              bytes_sent: number;
+              packets_received: number;
+              bytes_received: number;
+              packet_loss_percent: number;
+            }
+          | {
+              type: "serverConnectionInfo";
+              ping_ms: number;
+              connected_secs: number;
+              packet_loss_percent: number;
+              packets_sent_total: number;
+              bytes_sent_total: number;
+              packets_received_total: number;
+              bytes_received_total: number;
+              bandwidth_sent_last_second: number;
+              bandwidth_received_last_second: number;
+            };
 
         if (event.type === "connected") {
           this.emit({
@@ -205,6 +253,32 @@ export class Ts3Connection {
             fromSelf: event.from_self,
             message: event.message,
           });
+        } else if (event.type === "clientConnectionInfo") {
+          this.emit({
+            type: "clientConnectionInfo",
+            clientId: event.client_id,
+            pingMs: event.ping_ms,
+            connectedSecs: event.connected_secs,
+            ip: event.ip,
+            packetsSent: event.packets_sent,
+            bytesSent: event.bytes_sent,
+            packetsReceived: event.packets_received,
+            bytesReceived: event.bytes_received,
+            packetLossPercent: event.packet_loss_percent,
+          });
+        } else if (event.type === "serverConnectionInfo") {
+          this.emit({
+            type: "serverConnectionInfo",
+            pingMs: event.ping_ms,
+            connectedSecs: event.connected_secs,
+            packetLossPercent: event.packet_loss_percent,
+            packetsSentTotal: event.packets_sent_total,
+            bytesSentTotal: event.bytes_sent_total,
+            packetsReceivedTotal: event.packets_received_total,
+            bytesReceivedTotal: event.bytes_received_total,
+            bandwidthSentLastSecond: event.bandwidth_sent_last_second,
+            bandwidthReceivedLastSecond: event.bandwidth_received_last_second,
+          });
         } else {
           this.emit(event);
         }
@@ -228,6 +302,14 @@ export class Ts3Connection {
 
   async switchChannel(channelId: number): Promise<void> {
     this.child?.stdin.write(`switch ${channelId}\n`);
+  }
+
+  async getClientConnectionInfo(clientId: number): Promise<void> {
+    this.child?.stdin.write(`clientconninfo ${clientId}\n`);
+  }
+
+  async getServerConnectionInfo(): Promise<void> {
+    this.child?.stdin.write(`serverconninfo\n`);
   }
 
   async sendChatMessage(message: string): Promise<void> {

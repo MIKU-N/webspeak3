@@ -120,6 +120,14 @@ const translations: Record<Lang, Record<string, string>> = {
     "whisperLists.delete": "Löschen",
     "whisperLists.empty": "Keine Whisperlisten gespeichert. Wähle Whisper-Ziele aus und speichere sie hier als Liste.",
 
+    "identities.title": "Identitäten",
+    "identities.activate": "Aktivieren",
+    "identities.add": "Neue Identität",
+    "identities.delete": "Löschen",
+    "identities.newName": "Neue Identität",
+    "identities.generated": "Erstellt",
+    "identities.pending": "Wird bei der nächsten Verbindung erstellt",
+
     "menu.self.recordingProfile": "Aufnahmeprofil",
     "menu.self.playbackProfile": "Wiedergabeprofil",
     "menu.self.hotkeyProfile": "Hotkeyprofil",
@@ -434,6 +442,14 @@ const translations: Record<Lang, Record<string, string>> = {
     "whisperLists.activate": "Activate",
     "whisperLists.delete": "Delete",
     "whisperLists.empty": "No whisper lists saved yet. Select whisper targets and save them here as a list.",
+
+    "identities.title": "Identities",
+    "identities.activate": "Activate",
+    "identities.add": "New Identity",
+    "identities.delete": "Delete",
+    "identities.newName": "New Identity",
+    "identities.generated": "Generated",
+    "identities.pending": "Will be generated on next connection",
 
     "menu.self.recordingProfile": "Recording Profile",
     "menu.self.playbackProfile": "Playback Profile",

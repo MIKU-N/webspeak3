@@ -959,6 +959,44 @@
   color: var(--text-muted);
 }
 
+.ts-identities-dialog {
+  width: 460px;
+}
+
+.ts-identities-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.ts-identities-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 12px;
+}
+
+.ts-identities-item-active {
+  background: var(--accent-soft, rgba(78, 161, 247, 0.15));
+}
+
+.ts-identities-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.ts-identities-status {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .ts-log-level-row {
   flex-wrap: wrap;
 }

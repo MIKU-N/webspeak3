@@ -69,6 +69,40 @@ const LAST_NICKNAME_KEY = "webspeak3:last-nickname";
 /** Identity persisted across sessions so the server sees the same client UID
  *  each time, instead of a fresh one being generated per connection. */
 const IDENTITY_KEY = "webspeak3:identity";
+const IDENTITIES_KEY = "webspeak3:identities";
+const ACTIVE_IDENTITY_KEY = "webspeak3:active-identity";
+
+interface Identity {
+  id: string;
+  name: string;
+  /** Opaque tsclientlib identity blob - null until the first successful connect generates one. */
+  blob: string | null;
+}
+
+// One-time migration from the old single flat identity key to a list of named
+// identities (so users can maintain more than one persona), and to seed a
+// default entry for users who never had one either. Runs once at module load.
+(function ensureIdentitiesSeeded() {
+  if (localStorage.getItem(IDENTITIES_KEY) !== null) return;
+  const legacyBlob = localStorage.getItem(IDENTITY_KEY);
+  const id = crypto.randomUUID();
+  const identities: Identity[] = [{ id, name: "Standard", blob: legacyBlob }];
+  localStorage.setItem(IDENTITIES_KEY, JSON.stringify(identities));
+  localStorage.setItem(ACTIVE_IDENTITY_KEY, id);
+  localStorage.removeItem(IDENTITY_KEY);
+})();
+
+function loadIdentities(): Identity[] {
+  try {
+    const raw = localStorage.getItem(IDENTITIES_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Identity[]) : [];
+    if (parsed.length > 0) return parsed;
+  } catch {
+    // fall through
+  }
+  return [{ id: crypto.randomUUID(), name: "Standard", blob: null }];
+}
+
 const FAVORITES_KEY = "webspeak3:favorites";
 const INPUT_DEVICE_KEY = "webspeak3:input-device";
 const PLAYBACK_VOLUME_KEY = "webspeak3:playback-volume";
@@ -519,11 +553,14 @@ function ConnectDialog({
   defaultChannel,
   expanded,
   connecting,
+  identities,
+  activeIdentityId,
   onHostChange,
   onNicknameChange,
   onServerPasswordChange,
   onChannelPasswordChange,
   onDefaultChannelChange,
+  onActiveIdentityChange,
   onToggleExpanded,
   onConnect,
   onCancel,
@@ -535,11 +572,14 @@ function ConnectDialog({
   defaultChannel: string;
   expanded: boolean;
   connecting: boolean;
+  identities: Identity[];
+  activeIdentityId: string | null;
   onHostChange: (v: string) => void;
   onNicknameChange: (v: string) => void;
   onServerPasswordChange: (v: string) => void;
   onChannelPasswordChange: (v: string) => void;
   onDefaultChannelChange: (v: string) => void;
+  onActiveIdentityChange: (id: string) => void;
   onToggleExpanded: () => void;
   onConnect: () => void;
   onCancel: () => void;
@@ -583,8 +623,12 @@ function ConnectDialog({
               </label>
               <label className="ts-dialog-field">
                 {t("connect.identity")}
-                <select disabled defaultValue="Standard">
-                  <option>Standard</option>
+                <select value={activeIdentityId ?? ""} onChange={(e) => onActiveIdentityChange(e.target.value)}>
+                  {identities.map((identity) => (
+                    <option key={identity.id} value={identity.id}>
+                      {identity.name}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="ts-dialog-field">
@@ -1218,6 +1262,79 @@ function WhisperListsDialog({
           </ul>
         </div>
         <div className="ts-dialog-buttons">
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IdentitiesDialog({
+  identities,
+  activeId,
+  onActivate,
+  onAdd,
+  onRename,
+  onDelete,
+  onClose,
+}: {
+  identities: Identity[];
+  activeId: string | null;
+  onActivate: (id: string) => void;
+  onAdd: () => void;
+  onRename: (id: string, name: string) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-identities-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("identities.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          <ul className="ts-identities-list">
+            {identities.map((identity) => (
+              <li
+                key={identity.id}
+                className={`ts-identities-item${identity.id === activeId ? " ts-identities-item-active" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name="active-identity"
+                  checked={identity.id === activeId}
+                  onChange={() => onActivate(identity.id)}
+                  title={t("identities.activate")}
+                />
+                <input
+                  className="ts-identities-name"
+                  value={identity.name}
+                  onChange={(e) => onRename(identity.id, e.target.value)}
+                />
+                <span className="ts-identities-status">
+                  {identity.blob ? t("identities.generated") : t("identities.pending")}
+                </span>
+                <button
+                  disabled={identities.length <= 1}
+                  onClick={() => onDelete(identity.id)}
+                  title={t("identities.delete")}
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="ts-dialog-buttons">
+          <button onClick={onAdd}>{t("identities.add")}</button>
           <div className="ts-dialog-buttons-right">
             <button onClick={onClose}>{t("dialog.close")}</button>
           </div>
@@ -2143,6 +2260,11 @@ function AppInner() {
   const [whisperHistoryOpen, setWhisperHistoryOpen] = useState(false);
   const [whisperLists, setWhisperLists] = useState<WhisperList[]>(() => loadWhisperLists());
   const [whisperListsOpen, setWhisperListsOpen] = useState(false);
+  const [identities, setIdentities] = useState<Identity[]>(() => loadIdentities());
+  const [activeIdentityId, setActiveIdentityId] = useState<string | null>(() =>
+    localStorage.getItem(ACTIVE_IDENTITY_KEY)
+  );
+  const [identitiesOpen, setIdentitiesOpen] = useState(false);
   const [selfMenuOpen, setSelfMenuOpen] = useState(false);
   const selfMenuRef = useRef<HTMLDivElement | null>(null);
   const [changeNicknameOpen, setChangeNicknameOpen] = useState(false);
@@ -2199,6 +2321,14 @@ function AppInner() {
   useEffect(() => {
     localStorage.setItem(WHISPER_LISTS_KEY, JSON.stringify(whisperLists));
   }, [whisperLists]);
+
+  useEffect(() => {
+    localStorage.setItem(IDENTITIES_KEY, JSON.stringify(identities));
+  }, [identities]);
+
+  useEffect(() => {
+    if (activeIdentityId) localStorage.setItem(ACTIVE_IDENTITY_KEY, activeIdentityId);
+  }, [activeIdentityId]);
 
   const isSenderIgnored = (senderName: string) => {
     const senderClient = clients.find((c) => c.name === senderName);
@@ -2399,6 +2529,9 @@ function AppInner() {
 
     ensureAudioContext();
 
+    const connectIdentityId = activeIdentityId;
+    const connectIdentityBlob = identities.find((i) => i.id === connectIdentityId)?.blob ?? undefined;
+
     const socket = DEMO_MODE ? new DemoSocket() : new WebSocket(GATEWAY_URL);
     socketRef.current = socket;
 
@@ -2412,7 +2545,7 @@ function AppInner() {
           serverPassword: connectServerPassword || undefined,
           channelPassword: connectChannelPassword || undefined,
           defaultChannel: connectDefaultChannel || undefined,
-          identity: localStorage.getItem(IDENTITY_KEY) || undefined,
+          identity: connectIdentityBlob || undefined,
         })
       );
     };
@@ -2428,7 +2561,11 @@ function AppInner() {
           setConnected(true);
           localStorage.setItem(LAST_HOST_KEY, connectHost);
           localStorage.setItem(LAST_NICKNAME_KEY, connectNickname);
-          if (data.identity) localStorage.setItem(IDENTITY_KEY, data.identity);
+          if (data.identity && connectIdentityId) {
+            setIdentities((prev) =>
+              prev.map((i) => (i.id === connectIdentityId ? { ...i, blob: data.identity } : i))
+            );
+          }
           setServerName(data.serverName);
           setServerMaxClients(data.serverMaxClients);
           setServerVersion(data.serverVersion);
@@ -3115,6 +3252,24 @@ function AppInner() {
     setWhisperLists((prev) => prev.filter((list) => list.id !== id));
   };
 
+  const handleAddIdentity = () => {
+    const identity: Identity = { id: crypto.randomUUID(), name: t("identities.newName"), blob: null };
+    setIdentities((prev) => [...prev, identity]);
+  };
+
+  const handleRenameIdentity = (id: string, name: string) => {
+    setIdentities((prev) => prev.map((i) => (i.id === id ? { ...i, name } : i)));
+  };
+
+  const handleDeleteIdentity = (id: string) => {
+    setIdentities((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((i) => i.id !== id);
+      if (activeIdentityId === id) setActiveIdentityId(next[0]?.id ?? null);
+      return next;
+    });
+  };
+
   const handleClientContextMenu = (
     e: React.MouseEvent,
     clientId: number,
@@ -3357,7 +3512,13 @@ function AppInner() {
           </span>
           {extrasMenuOpen && (
             <div className="ts-menu">
-              <button className="ts-menu-item" disabled>
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  setIdentitiesOpen(true);
+                  setExtrasMenuOpen(false);
+                }}
+              >
                 <span className="ts-menu-item-icon">🪪</span>
                 <span className="ts-menu-item-label">{t("menu.extras.identities")}</span>
                 <span className="ts-menu-item-shortcut">Strg+I</span>
@@ -3681,11 +3842,14 @@ function AppInner() {
           defaultChannel={defaultChannel}
           expanded={connectDialogExpanded}
           connecting={connecting}
+          identities={identities}
+          activeIdentityId={activeIdentityId}
           onHostChange={setHost}
           onNicknameChange={setNickname}
           onServerPasswordChange={setServerPassword}
           onChannelPasswordChange={setChannelPassword}
           onDefaultChannelChange={setDefaultChannel}
+          onActiveIdentityChange={setActiveIdentityId}
           onToggleExpanded={() => setConnectDialogExpanded((v) => !v)}
           onConnect={handleConnect}
           onCancel={() => setConnectDialogOpen(false)}
@@ -3738,6 +3902,18 @@ function AppInner() {
           onActivate={handleActivateWhisperList}
           onDelete={handleDeleteWhisperList}
           onClose={() => setWhisperListsOpen(false)}
+        />
+      )}
+
+      {identitiesOpen && (
+        <IdentitiesDialog
+          identities={identities}
+          activeId={activeIdentityId}
+          onActivate={setActiveIdentityId}
+          onAdd={handleAddIdentity}
+          onRename={handleRenameIdentity}
+          onDelete={handleDeleteIdentity}
+          onClose={() => setIdentitiesOpen(false)}
         />
       )}
 

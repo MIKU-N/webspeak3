@@ -1234,6 +1234,96 @@
   border-radius: 2px;
 }
 
+.ts-perms-editor-dialog {
+  width: 820px;
+  max-width: 95vw;
+}
+
+.ts-perms-editor-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-soft);
+  flex-wrap: wrap;
+}
+
+.ts-perms-editor-tab {
+  background: none;
+  border: none;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+}
+
+.ts-perms-editor-tab-active {
+  color: var(--text);
+  border-bottom-color: var(--accent, #4a9eff);
+}
+
+.ts-perms-editor-body {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.ts-perms-editor-picker {
+  width: 180px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ts-perms-editor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 380px;
+  overflow-y: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+}
+
+.ts-perms-editor-list li {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.ts-perms-editor-list li:last-child {
+  border-bottom: none;
+}
+
+.ts-perms-editor-list-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ts-perms-editor-selected {
+  font-weight: bold;
+  color: var(--accent, #4a9eff);
+}
+
+.ts-perms-editor-client-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ts-perms-editor-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ts-perms-editor-add-form {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+}
+
 .ts-server-protocol-log-line {
   padding: 0.15rem 0.4rem;
   border-bottom: 1px solid var(--border-soft);

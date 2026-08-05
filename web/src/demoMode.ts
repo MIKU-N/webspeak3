@@ -101,6 +101,56 @@ function demoNowTimestamp(): string {
   return new Date().toISOString().slice(0, 19).replace("T", " ");
 }
 
+interface DemoPermEntry {
+  name: string;
+  description: string;
+  value: number;
+  negated: boolean;
+  skip: boolean;
+}
+
+// A small fake permission catalog (real TS3 servers expose ~500 of these) -
+// enough for the permissions editor's "add permission" picker to be usable.
+const DEMO_PERMISSION_CATALOG: { id: number; name: string; description: string }[] = [
+  { id: 1, name: "b_client_info_view", description: "View own client info" },
+  { id: 2, name: "b_client_permissionoverview_view", description: "View permission overview" },
+  { id: 3, name: "i_channel_join_power", description: "Power to join channels" },
+  { id: 4, name: "i_client_talk_power", description: "Talk power" },
+  { id: 5, name: "b_client_use_priority_speaker", description: "Use priority speaker" },
+  { id: 6, name: "i_client_max_channel_subscriptions", description: "Max channel subscriptions" },
+  { id: 7, name: "b_channel_join_permanent", description: "Join permanent channels" },
+  { id: 8, name: "b_client_kick_from_channel", description: "Kick client from channel" },
+  { id: 9, name: "b_client_kick_from_server", description: "Kick client from server" },
+  { id: 10, name: "b_client_ban_client", description: "Ban client" },
+  { id: 11, name: "i_channel_create_modify_power", description: "Power to create/modify channels" },
+  { id: 12, name: "b_virtualserver_modify_name", description: "Modify server name" },
+  { id: 13, name: "b_ft_file_upload", description: "Upload files" },
+  { id: 14, name: "b_ft_file_download", description: "Download files" },
+];
+
+// Keyed by "<scope>:<id1>:<id2 ?? ->" - the fake permission set currently
+// assigned to one server group / channel group / channel / client /
+// channel+client combination.
+const DEMO_PERM_LISTS: Record<string, DemoPermEntry[]> = {
+  "server:1:-": [
+    { name: "b_client_kick_from_server", description: "Kick client from server", value: 1, negated: false, skip: false },
+    { name: "b_client_ban_client", description: "Ban client", value: 1, negated: false, skip: false },
+  ],
+  "server:4:-": [
+    { name: "i_channel_join_power", description: "Power to join channels", value: 25, negated: false, skip: false },
+  ],
+  "channelgroup:1:-": [
+    { name: "i_channel_create_modify_power", description: "Power to create/modify channels", value: 75, negated: false, skip: false },
+  ],
+  "client:1:-": [
+    { name: "b_client_info_view", description: "View own client info", value: 1, negated: false, skip: false },
+  ],
+};
+
+function demoPermKey(scope: string, id1: number, id2?: number): string {
+  return `${scope}:${id1}:${id2 ?? "-"}`;
+}
+
 const SELF_ID = 101;
 
 /**
@@ -421,6 +471,36 @@ export class DemoSocket {
             ],
           })
         );
+        break;
+      }
+      case "getPermissionCatalog": {
+        this.after(300, () => this.emit({ type: "permissionCatalog", entries: DEMO_PERMISSION_CATALOG }));
+        break;
+      }
+      case "getPermList": {
+        const key = demoPermKey(msg.scope, msg.id1, msg.id2);
+        this.after(300, () =>
+          this.emit({ type: "permList", scope: msg.scope, id1: msg.id1, id2: msg.id2 ?? null, entries: DEMO_PERM_LISTS[key] ?? [] })
+        );
+        break;
+      }
+      case "addPermission": {
+        const [id1, id2] = msg.ids as number[];
+        const key = demoPermKey(msg.scope, id1, id2);
+        const catalogEntry = DEMO_PERMISSION_CATALOG.find((p) => p.id === msg.permId);
+        const name = catalogEntry?.name ?? `#${msg.permId}`;
+        const description = catalogEntry?.description ?? "";
+        const list = (DEMO_PERM_LISTS[key] ?? []).filter((e) => e.name !== name);
+        list.push({ name, description, value: msg.value, negated: !!msg.negated, skip: !!msg.skip });
+        DEMO_PERM_LISTS[key] = list;
+        break;
+      }
+      case "removePermission": {
+        const [id1, id2] = msg.ids as number[];
+        const key = demoPermKey(msg.scope, id1, id2);
+        const catalogEntry = DEMO_PERMISSION_CATALOG.find((p) => p.id === msg.permId);
+        const name = catalogEntry?.name ?? `#${msg.permId}`;
+        if (DEMO_PERM_LISTS[key]) DEMO_PERM_LISTS[key] = DEMO_PERM_LISTS[key].filter((e) => e.name !== name);
         break;
       }
       case "getFileList": {

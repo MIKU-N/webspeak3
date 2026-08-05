@@ -246,6 +246,22 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.uploadFile(msg.channelId, msg.path, msg.dataBase64);
         break;
       }
+      case "getPermissionCatalog": {
+        await connection?.getPermissionCatalog();
+        break;
+      }
+      case "getPermList": {
+        await connection?.getPermList(msg.scope, msg.id1, msg.id2);
+        break;
+      }
+      case "addPermission": {
+        await connection?.addPermission(msg.scope, msg.ids, msg.permId, msg.value, msg.negated, msg.skip);
+        break;
+      }
+      case "removePermission": {
+        await connection?.removePermission(msg.scope, msg.ids, msg.permId);
+        break;
+      }
       case "disconnect": {
         await connection?.disconnect(msg.message ?? "");
         break;

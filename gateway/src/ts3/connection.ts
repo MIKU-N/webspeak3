@@ -51,6 +51,14 @@ export interface PermissionOverviewEntry {
   skip: boolean;
 }
 
+export interface PermissionCatalogEntry {
+  id: number;
+  name: string;
+  description: string;
+}
+
+export type PermScope = "server" | "channelgroup" | "channel" | "client" | "channelclient";
+
 export interface BanListEntry {
   banId: number;
   ip: string;
@@ -162,7 +170,9 @@ export type Ts3ConnectionEvent =
   | { type: "permissionOverview"; entries: PermissionOverviewEntry[] }
   | { type: "fileList"; cid: number; path: string; entries: FileListEntry[] }
   | { type: "fileDownloadData"; cid: number; path: string; data: string }
-  | { type: "fileUploadDone"; cid: number; path: string };
+  | { type: "fileUploadDone"; cid: number; path: string }
+  | { type: "permList"; scope: PermScope; id1: number; id2: number | null; entries: PermissionOverviewEntry[] }
+  | { type: "permissionCatalog"; entries: PermissionCatalogEntry[] };
 
 export interface Ts3ConnectOptions {
   host: string;
@@ -334,7 +344,9 @@ export class Ts3Connection {
             }
           | { type: "fileList"; cid: number; path: string; entries: FileListEntry[] }
           | { type: "fileDownloadData"; cid: number; path: string; data: string }
-          | { type: "fileUploadDone"; cid: number; path: string };
+          | { type: "fileUploadDone"; cid: number; path: string }
+          | { type: "permList"; scope: PermScope; id1: number; id2: number | null; entries: PermissionOverviewEntry[] }
+          | { type: "permissionCatalog"; entries: PermissionCatalogEntry[] };
 
         if (event.type === "connected") {
           this.emit({
@@ -608,6 +620,36 @@ export class Ts3Connection {
 
   async getPermissionOverview(): Promise<void> {
     this.child?.stdin.write(`permoverview\n`);
+  }
+
+  async getPermissionCatalog(): Promise<void> {
+    this.child?.stdin.write(`permissionlist\n`);
+  }
+
+  async getPermList(scope: PermScope, id1: number, id2?: number): Promise<void> {
+    const args = id2 !== undefined ? `${scope} ${id1} ${id2}` : `${scope} ${id1}`;
+    this.child?.stdin.write(`permlist ${args}\n`);
+  }
+
+  /** `negated`/`skip` only apply to the "server" and "client" scopes - the
+   *  connector ignores extra trailing args for scopes that don't use them, so
+   *  it's safe to always pass through what the caller gave. */
+  async addPermission(
+    scope: PermScope,
+    ids: number[],
+    permId: number,
+    value: number,
+    negated = false,
+    skip = false
+  ): Promise<void> {
+    let args = `${scope} ${ids.join(" ")} ${permId} ${value}`;
+    if (scope === "server") args += ` ${negated ? 1 : 0} ${skip ? 1 : 0}`;
+    else if (scope === "client") args += ` ${skip ? 1 : 0}`;
+    this.child?.stdin.write(`permadd ${args}\n`);
+  }
+
+  async removePermission(scope: PermScope, ids: number[], permId: number): Promise<void> {
+    this.child?.stdin.write(`permdel ${scope} ${ids.join(" ")} ${permId}\n`);
   }
 
   async getFileList(channelId: number, path: string): Promise<void> {

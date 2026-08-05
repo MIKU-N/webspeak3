@@ -13,14 +13,19 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tsclientlib::audio::AudioHandler;
 use tsclientlib::events::{Event as BookEvent, PropertyId, PropertyValue};
 use tsclientlib::messages::c2s::{
-	OutClientPokeRequestPart, OutCreateDirectoryPart, OutDeleteFilePart, OutFileListRequestPart,
-	OutRenameFilePart, OutSendTextMessagePart,
+	OutChannelAddPermPart, OutChannelClientAddPermPart, OutChannelClientDelPermPart,
+	OutChannelClientPermListRequestPart, OutChannelDelPermPart, OutChannelGroupAddPermPart,
+	OutChannelGroupDelPermPart, OutChannelGroupPermListRequestPart, OutChannelPermListRequestPart,
+	OutClientAddPermPart, OutClientDelPermPart, OutClientPermListRequestPart, OutClientPokeRequestPart,
+	OutCreateDirectoryPart, OutDeleteFilePart, OutFileListRequestPart, OutRenameFilePart,
+	OutSendTextMessagePart, OutServerGroupAddPermPart, OutServerGroupDelPermPart,
+	OutServerGroupPermListRequestPart,
 };
 use tsclientlib::prelude::*;
 use tsclientlib::{
-	data, ChannelId, ClientId, CodecEncryptionMode, Connection, DisconnectOptions, HostBannerMode,
-	HostMessageMode, Identity, InMessage, MaxClients, MessageHandle, MessageTarget, Reason,
-	StreamItem, TextMessageTargetMode,
+	data, ChannelGroupId, ChannelId, ClientDbId, ClientId, CodecEncryptionMode, Connection,
+	DisconnectOptions, HostBannerMode, HostMessageMode, Identity, InMessage, MaxClients,
+	MessageHandle, MessageTarget, Permission, Reason, ServerGroupId, StreamItem, TextMessageTargetMode,
 };
 use tsproto_packets::packets::{AudioData, CodecType, Direction, Flags, OutAudio, OutCommand, PacketType};
 
@@ -285,6 +290,17 @@ enum Event {
 	/// A requested file upload finished successfully.
 	#[serde(rename = "fileUploadDone")]
 	FileUploadDone { cid: u64, path: String },
+	/// Reply to a "permlist <scope> ..." request - the permissions currently
+	/// assigned to one server group / channel group / channel / client /
+	/// channel+client combination. `scope` and `id1`/`id2` echo what was
+	/// requested, so the frontend can route the reply to the right editor tab.
+	#[serde(rename = "permList")]
+	PermList { scope: String, id1: u64, id2: Option<u64>, entries: Vec<PermissionOverviewEntry> },
+	/// Reply to a "permissionlist" request - the full catalog of every
+	/// permission the server knows about (not just ones actually assigned
+	/// anywhere), for populating an "add permission" picker.
+	#[serde(rename = "permissionCatalog")]
+	PermissionCatalog { entries: Vec<PermissionCatalogEntry> },
 }
 
 #[derive(Serialize)]
@@ -331,6 +347,14 @@ struct PermissionOverviewEntry {
 	value: i32,
 	negated: bool,
 	skip: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PermissionCatalogEntry {
+	id: u32,
+	name: String,
+	description: String,
 }
 
 #[derive(Serialize)]
@@ -695,6 +719,17 @@ async fn run(args: Args) -> Result<()> {
 	// request that stream belongs to.
 	let mut pending_downloads: HashMap<u16, (u64, String)> = HashMap::new();
 	let mut pending_uploads: HashMap<u16, (u64, String, Vec<u8>)> = HashMap::new();
+	// Set by "permissionlist" while waiting to emit the full permission
+	// catalog (name-resolution reuses the same permission_names cache/fetch
+	// as "permoverview" above).
+	let mut pending_permission_catalog = false;
+	// Set by "permlist <scope> ..." while one server-group/channel-group/
+	// channel/client/channel+client permission listing is in flight - single
+	// request at a time, matching the editor UI only ever loading one
+	// selected target. (scope, id1, id2) echoes what was requested so the
+	// eventual emit can be routed back to it.
+	let mut pending_perm_list: Option<(String, u64, Option<u64>)> = None;
+	let mut pending_perm_list_raw: Option<Vec<(u32, i32, bool, bool)>> = None;
 
 	enum LoopOutcome {
 		StdinLine(std::io::Result<Option<String>>),
@@ -1508,6 +1543,216 @@ async fn run(args: Args) -> Result<()> {
 							}
 							_ => emit(&Event::Error { message: "Invalid ftupload args".into() }),
 						}
+					} else if l == "permissionlist" {
+						if permission_names.is_empty() {
+							let packet = OutCommand::new(
+								Direction::C2S,
+								Flags::empty(),
+								PacketType::Command,
+								"permissionlist",
+							);
+							match packet.send_with_result(&mut con) {
+								Ok(handle) => {
+									pending_permission_list = true;
+									pending_permission_catalog = true;
+									pending_messages.insert(handle, "Permission list".into());
+								}
+								Err(e) => emit(&Event::Error { message: e.to_string() }),
+							}
+						} else {
+							let entries: Vec<PermissionCatalogEntry> = permission_names
+								.iter()
+								.map(|(id, (name, description))| PermissionCatalogEntry {
+									id: *id,
+									name: name.clone(),
+									description: description.clone(),
+								})
+								.collect();
+							emit(&Event::PermissionCatalog { entries });
+						}
+					} else if let Some(rest) = l.strip_prefix("permlist ") {
+						let parts: Vec<&str> = rest.trim().split_whitespace().collect();
+						let target = match parts.as_slice() {
+							["server", sgid] => sgid.parse::<u64>().ok().map(|id| {
+								("server".to_string(), id, None, OutServerGroupPermListRequestPart {
+									server_group_id: ServerGroupId(id),
+								}.to_packet())
+							}),
+							["channelgroup", cgid] => cgid.parse::<u64>().ok().map(|id| {
+								("channelgroup".to_string(), id, None, OutChannelGroupPermListRequestPart {
+									channel_group: ChannelGroupId(id),
+								}.to_packet())
+							}),
+							["channel", cid] => cid.parse::<u64>().ok().map(|id| {
+								("channel".to_string(), id, None, OutChannelPermListRequestPart { channel_id: ChannelId(id) }.to_packet())
+							}),
+							["client", cldbid] => cldbid.parse::<u64>().ok().map(|id| {
+								("client".to_string(), id, None, OutClientPermListRequestPart { client_db_id: ClientDbId(id) }.to_packet())
+							}),
+							["channelclient", cid, cldbid] => match (cid.parse::<u64>(), cldbid.parse::<u64>()) {
+								(Ok(id1), Ok(id2)) => Some((
+									"channelclient".to_string(),
+									id1,
+									Some(id2),
+									OutChannelClientPermListRequestPart {
+										channel_id: ChannelId(id1),
+										client_db_id: ClientDbId(id2),
+									}
+									.to_packet(),
+								)),
+								_ => None,
+							},
+							_ => None,
+						};
+						match target {
+							Some((scope, id1, id2, packet)) => {
+								if permission_names.is_empty() {
+									let names_packet = OutCommand::new(
+										Direction::C2S,
+										Flags::empty(),
+										PacketType::Command,
+										"permissionlist",
+									);
+									match names_packet.send_with_result(&mut con) {
+										Ok(handle) => {
+											pending_permission_list = true;
+											pending_messages.insert(handle, "Permission list".into());
+										}
+										Err(e) => emit(&Event::Error { message: e.to_string() }),
+									}
+								}
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_perm_list = Some((scope, id1, id2));
+										pending_messages.insert(handle, "Permission list request".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							None => emit(&Event::Error { message: format!("Invalid permlist args: {rest}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("permadd ") {
+						let parts: Vec<&str> = rest.trim().split_whitespace().collect();
+						let result = (|| -> Option<OutCommand> {
+							match parts.as_slice() {
+								["server", sgid, permid, value, negated, skip] => Some(
+									OutServerGroupAddPermPart {
+										server_group_id: ServerGroupId(sgid.parse().ok()?),
+										permission_id: Some(Permission(permid.parse().ok()?)),
+										permission_name_id: None,
+										permission_value: value.parse().ok()?,
+										permission_negated: *negated == "1",
+										permission_skip: *skip == "1",
+									}
+									.to_packet(),
+								),
+								["channelgroup", cgid, permid, value] => Some(
+									OutChannelGroupAddPermPart {
+										channel_group: ChannelGroupId(cgid.parse().ok()?),
+										permission_id: Some(Permission(permid.parse().ok()?)),
+										permission_name_id: None,
+										permission_value: value.parse().ok()?,
+									}
+									.to_packet(),
+								),
+								["channel", cid, permid, value] => Some(
+									OutChannelAddPermPart {
+										channel_id: ChannelId(cid.parse().ok()?),
+										permission_id: Some(Permission(permid.parse().ok()?)),
+										permission_name_id: None,
+										permission_value: value.parse().ok()?,
+									}
+									.to_packet(),
+								),
+								["client", cldbid, permid, value, skip] => Some(
+									OutClientAddPermPart {
+										client_db_id: ClientDbId(cldbid.parse().ok()?),
+										permission_id: Some(Permission(permid.parse().ok()?)),
+										permission_name_id: None,
+										permission_value: value.parse().ok()?,
+										permission_skip: *skip == "1",
+									}
+									.to_packet(),
+								),
+								["channelclient", cid, cldbid, permid, value] => Some(
+									OutChannelClientAddPermPart {
+										channel_id: ChannelId(cid.parse().ok()?),
+										client_db_id: ClientDbId(cldbid.parse().ok()?),
+										permission_id: Some(Permission(permid.parse().ok()?)),
+										permission_name_id: None,
+										permission_value: value.parse().ok()?,
+									}
+									.to_packet(),
+								),
+								_ => None,
+							}
+						})();
+						match result {
+							Some(packet) => match packet.send_with_result(&mut con) {
+								Ok(handle) => {
+									pending_messages.insert(handle, "Add permission".into());
+								}
+								Err(e) => emit(&Event::Error { message: e.to_string() }),
+							},
+							None => emit(&Event::Error { message: format!("Invalid permadd args: {rest}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("permdel ") {
+						let parts: Vec<&str> = rest.trim().split_whitespace().collect();
+						let result = (|| -> Option<OutCommand> {
+							match parts.as_slice() {
+								["server", sgid, permid] => Some(
+									OutServerGroupDelPermPart {
+										server_group_id: ServerGroupId(sgid.parse().ok()?),
+										permission_id: Some(Permission(permid.parse().ok()?)),
+										permission_name_id: None,
+									}
+									.to_packet(),
+								),
+								["channelgroup", cgid, permid] => Some(
+									OutChannelGroupDelPermPart {
+										channel_group: ChannelGroupId(cgid.parse().ok()?),
+										permission_id: Some(Permission(permid.parse().ok()?)),
+										permission_name_id: None,
+									}
+									.to_packet(),
+								),
+								["channel", cid, permid] => Some(
+									OutChannelDelPermPart {
+										channel_id: ChannelId(cid.parse().ok()?),
+										permission_id: Some(Permission(permid.parse().ok()?)),
+										permission_name_id: None,
+									}
+									.to_packet(),
+								),
+								["client", cldbid, permid] => Some(
+									OutClientDelPermPart {
+										client_db_id: ClientDbId(cldbid.parse().ok()?),
+										permission_id: Some(Permission(permid.parse().ok()?)),
+										permission_name_id: None,
+									}
+									.to_packet(),
+								),
+								["channelclient", cid, cldbid, permid] => Some(
+									OutChannelClientDelPermPart {
+										channel_id: ChannelId(cid.parse().ok()?),
+										client_db_id: ClientDbId(cldbid.parse().ok()?),
+										permission_id: Some(Permission(permid.parse().ok()?)),
+										permission_name_id: None,
+									}
+									.to_packet(),
+								),
+								_ => None,
+							}
+						})();
+						match result {
+							Some(packet) => match packet.send_with_result(&mut con) {
+								Ok(handle) => {
+									pending_messages.insert(handle, "Remove permission".into());
+								}
+								Err(e) => emit(&Event::Error { message: e.to_string() }),
+							},
+							None => emit(&Event::Error { message: format!("Invalid permdel args: {rest}") }),
+						}
 					} else if let Some(b64) = l.strip_prefix("audio ") {
 						match base64::engine::general_purpose::STANDARD.decode(b64.trim()) {
 							Ok(bytes) => {
@@ -1804,6 +2049,34 @@ async fn run(args: Args) -> Result<()> {
 									.collect();
 								emit(&Event::PermissionOverview { entries });
 							}
+							if let Some(raw) = pending_perm_list_raw.take() {
+								if let Some((scope, id1, id2)) = pending_perm_list.clone() {
+									let entries: Vec<PermissionOverviewEntry> = raw
+										.into_iter()
+										.map(|(id, value, negated, skip)| {
+											let (name, description) = permission_names
+												.get(&id)
+												.cloned()
+												.unwrap_or_else(|| (format!("#{id}"), String::new()));
+											PermissionOverviewEntry { name, description, value, negated, skip }
+										})
+										.collect();
+									emit(&Event::PermList { scope, id1, id2, entries });
+									pending_perm_list = None;
+								}
+							}
+							if pending_permission_catalog {
+								pending_permission_catalog = false;
+								let entries: Vec<PermissionCatalogEntry> = permission_names
+									.iter()
+									.map(|(id, (name, description))| PermissionCatalogEntry {
+										id: *id,
+										name: name.clone(),
+										description: description.clone(),
+									})
+									.collect();
+								emit(&Event::PermissionCatalog { entries });
+							}
 						}
 					}
 					if pending_perm_overview {
@@ -1836,6 +2109,73 @@ async fn run(args: Args) -> Result<()> {
 									})
 									.collect();
 								emit(&Event::PermissionOverview { entries });
+							}
+						}
+					}
+					if pending_perm_list.is_some() {
+						let raw: Option<Vec<(u32, i32, bool, bool)>> = match &msg {
+							InMessage::ServerGroupPermList(list) => Some(
+								list.iter()
+									.filter_map(|part| {
+										part.permission_id.map(|id| {
+											(id.0, part.permission_value, part.permission_negated, part.permission_skip)
+										})
+									})
+									.collect(),
+							),
+							InMessage::ChannelGroupPermList(list) => Some(
+								list.iter()
+									.filter_map(|part| {
+										part.permission_id.map(|id| {
+											(id.0, part.permission_value, part.permission_negated, part.permission_skip)
+										})
+									})
+									.collect(),
+							),
+							InMessage::ChannelPermList(list) => Some(
+								list.iter()
+									.map(|part| {
+										(part.permission_id.0, part.permission_value, part.permission_negated, part.permission_skip)
+									})
+									.collect(),
+							),
+							InMessage::ClientPermList(list) => Some(
+								list.iter()
+									.filter_map(|part| {
+										part.permission_id.map(|id| {
+											(id.0, part.permission_value, part.permission_negated, part.permission_skip)
+										})
+									})
+									.collect(),
+							),
+							InMessage::ChannelClientPermList(list) => Some(
+								list.iter()
+									.filter_map(|part| {
+										part.permission_id.map(|id| {
+											(id.0, part.permission_value, part.permission_negated, part.permission_skip)
+										})
+									})
+									.collect(),
+							),
+							_ => None,
+						};
+						if let Some(raw) = raw {
+							if pending_permission_list {
+								// The name lookup hasn't come back yet - buffer the raw
+								// values and resolve them once it does.
+								pending_perm_list_raw = Some(raw);
+							} else if let Some((scope, id1, id2)) = pending_perm_list.take() {
+								let entries: Vec<PermissionOverviewEntry> = raw
+									.into_iter()
+									.map(|(id, value, negated, skip)| {
+										let (name, description) = permission_names
+											.get(&id)
+											.cloned()
+											.unwrap_or_else(|| (format!("#{id}"), String::new()));
+										PermissionOverviewEntry { name, description, value, negated, skip }
+									})
+									.collect();
+								emit(&Event::PermList { scope, id1, id2, entries });
 							}
 						}
 					}

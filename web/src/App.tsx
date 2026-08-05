@@ -5352,6 +5352,53 @@ function AppInner() {
    *  nickname=<...>
    *  phonetic_nickname=<...>
    *  Returns null if it doesn't look like one. */
+  /** Undoes Qt's QSettings .ini string escaping: `\xH..HHHH` (1-4 hex
+   *  digits) is one UTF-16 *code unit*, not one byte - astral characters
+   *  (emoji etc.) come out as two consecutive escapes forming a surrogate
+   *  pair, e.g. "\xd83d\xde43" for 🙃. Treating each \xHH as a standalone
+   *  Latin-1 byte (the previous approach) mangles anything outside the
+   *  Latin-1 range into mojibake, which is exactly what showed up in the
+   *  nickname field for names with Greek/Turkish letters or emoji. */
+  const unescapeQtIni = (value: string): string => {
+    let result = "";
+    for (let i = 0; i < value.length; i++) {
+      if (value[i] === "\\") {
+        const next = value[i + 1];
+        if (next === "x") {
+          let hex = "";
+          let j = i + 2;
+          while (j < value.length && hex.length < 4 && /[0-9a-fA-F]/.test(value[j])) {
+            hex += value[j];
+            j++;
+          }
+          if (hex.length > 0) {
+            result += String.fromCharCode(parseInt(hex, 16));
+            i = j - 1;
+            continue;
+          }
+        } else if (next === "n") {
+          result += "\n";
+          i++;
+          continue;
+        } else if (next === "t") {
+          result += "\t";
+          i++;
+          continue;
+        } else if (next === "r") {
+          result += "\r";
+          i++;
+          continue;
+        } else if (next === "\\" || next === '"') {
+          result += next;
+          i++;
+          continue;
+        }
+      }
+      result += value[i];
+    }
+    return result;
+  };
+
   const parseIniIdentity = (text: string): { name: string; nickname: string; phonetic: string; blob: string } | null => {
     if (!/^\s*\[Identity\]/im.test(text)) return null;
     const fields: Record<string, string> = {};
@@ -5360,9 +5407,7 @@ function AppInner() {
       if (!m) continue;
       let value = m[2].trim();
       if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
-      // The native client escapes non-ASCII bytes in this file as \xHH.
-      value = value.replace(/\\x([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
-      fields[m[1]] = value;
+      fields[m[1]] = unescapeQtIni(value);
     }
     if (!fields.identity) return null;
     return { name: fields.id ?? "", nickname: fields.nickname ?? "", phonetic: fields.phonetic_nickname ?? "", blob: fields.identity };

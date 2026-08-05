@@ -3102,6 +3102,8 @@ function AppInner() {
   const [serverConnectionInfo, setServerConnectionInfo] = useState<ServerConnectionInfoData | null>(null);
   const [selfMenuOpen, setSelfMenuOpen] = useState(false);
   const selfMenuRef = useRef<HTMLDivElement | null>(null);
+  const [rightsMenuOpen, setRightsMenuOpen] = useState(false);
+  const rightsMenuRef = useRef<HTMLDivElement | null>(null);
   const [changeNicknameOpen, setChangeNicknameOpen] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState("");
   const nicknameBackdrop = useBackdropDismiss(() => setChangeNicknameOpen(false));
@@ -3864,6 +3866,22 @@ function AppInner() {
   }, [selfMenuOpen]);
 
   useEffect(() => {
+    if (!rightsMenuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (!rightsMenuRef.current?.contains(e.target as Node)) setRightsMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setRightsMenuOpen(false);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [rightsMenuOpen]);
+
+  useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!e.ctrlKey) return;
       if (e.key.toLowerCase() === "s" && !connected && !connecting) {
@@ -4530,7 +4548,44 @@ function AppInner() {
             </div>
           )}
         </div>
-        <span className="ts-menubar-item">{t("menu.rights")}</span>
+        <div className="ts-menubar-dropdown" ref={rightsMenuRef}>
+          <span
+            className="ts-menubar-item ts-menubar-item-active"
+            onClick={() => setRightsMenuOpen((v) => !v)}
+          >
+            {t("menu.rights")}
+          </span>
+          {rightsMenuOpen && (
+            <div className="ts-menu">
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">🏷️</span>
+                <span className="ts-menu-item-label">{t("menu.rights.serverGroups")}</span>
+              </button>
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">🎖️</span>
+                <span className="ts-menu-item-label">{t("menu.rights.channelGroups")}</span>
+              </button>
+              <div className="ts-menu-separator" />
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">🔐</span>
+                <span className="ts-menu-item-label">{t("menu.rights.serverPermissions")}</span>
+              </button>
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">🔑</span>
+                <span className="ts-menu-item-label">{t("menu.rights.channelPermissions")}</span>
+              </button>
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">📖</span>
+                <span className="ts-menu-item-label">{t("menu.rights.overview")}</span>
+              </button>
+              <div className="ts-menu-separator" />
+              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+                <span className="ts-menu-item-icon">🙋</span>
+                <span className="ts-menu-item-label">{t("menu.rights.myRights")}</span>
+              </button>
+            </div>
+          )}
+        </div>
         <div className="ts-menubar-dropdown" ref={extrasMenuRef}>
           <span
             className="ts-menubar-item ts-menubar-item-active"

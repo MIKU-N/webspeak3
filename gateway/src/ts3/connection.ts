@@ -327,6 +327,30 @@ export class Ts3Connection {
     this.child?.stdin.write(`banclient ${clientId} ${Math.max(0, Math.floor(seconds))} ${sanitized}\n`);
   }
 
+  /** Every field is optional - only send what actually changed. JSON.stringify
+   *  already escapes embedded newlines, so this is safe as a single stdin line
+   *  without extra sanitization. */
+  async editServer(payload: {
+    name?: string;
+    welcomeMessage?: string;
+    password?: string;
+    maxClients?: number;
+    hostmessage?: string;
+    hostmessageMode?: string;
+    hostbannerUrl?: string;
+    hostbannerGfxUrl?: string;
+    hostbannerGfxIntervalSecs?: number;
+    hostbannerMode?: string;
+    hostbuttonTooltip?: string;
+    hostbuttonUrl?: string;
+    hostbuttonGfxUrl?: string;
+    nickname?: string;
+    phoneticName?: string;
+    codecEncryptionMode?: string;
+  }): Promise<void> {
+    this.child?.stdin.write(`serveredit ${JSON.stringify(payload)}\n`);
+  }
+
   async sendChatMessage(message: string): Promise<void> {
     const sanitized = message.replace(/[\r\n]+/g, " ").trim();
     if (sanitized) this.child?.stdin.write(`chat ${sanitized}\n`);

@@ -7,7 +7,7 @@ use audiopus::coder::Encoder as OpusEncoder;
 use base64::Engine;
 use clap::Parser;
 use futures::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use tsclientlib::audio::AudioHandler;
@@ -15,8 +15,9 @@ use tsclientlib::events::{Event as BookEvent, PropertyId, PropertyValue};
 use tsclientlib::messages::c2s::{OutClientPokeRequestPart, OutSendTextMessagePart};
 use tsclientlib::prelude::*;
 use tsclientlib::{
-	data, ChannelId, ClientId, Connection, DisconnectOptions, Identity, MaxClients, MessageHandle,
-	MessageTarget, Reason, StreamItem, TextMessageTargetMode,
+	data, ChannelId, ClientId, CodecEncryptionMode, Connection, DisconnectOptions, HostBannerMode,
+	HostMessageMode, Identity, MaxClients, MessageHandle, MessageTarget, Reason, StreamItem,
+	TextMessageTargetMode,
 };
 use tsproto_packets::packets::{AudioData, CodecType, Direction, Flags, OutAudio, OutCommand, PacketType};
 
@@ -76,6 +77,64 @@ struct ClientInfo {
 	is_channel_commander: bool,
 	country: String,
 	uid: String,
+}
+
+/// Payload for the "serveredit " stdin command - every field is optional so
+/// the frontend only needs to send what actually changed. Covers the fields
+/// tsclientlib's `Server::edit()` builder exposes named setters for; a few
+/// exotic ones (antiflood tuning, quotas, log toggles) have no typed setter
+/// upstream and aren't included here.
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ServerEditPayload {
+	name: Option<String>,
+	welcome_message: Option<String>,
+	/// `Some("")` clears the password; `None` leaves it unchanged.
+	password: Option<String>,
+	max_clients: Option<u16>,
+	hostmessage: Option<String>,
+	/// "none" | "log" | "modal" | "modalquit"
+	hostmessage_mode: Option<String>,
+	hostbanner_url: Option<String>,
+	hostbanner_gfx_url: Option<String>,
+	hostbanner_gfx_interval_secs: Option<i64>,
+	/// "noadjust" | "adjustignoreaspect" | "adjustkeepaspect"
+	hostbanner_mode: Option<String>,
+	hostbutton_tooltip: Option<String>,
+	hostbutton_url: Option<String>,
+	hostbutton_gfx_url: Option<String>,
+	nickname: Option<String>,
+	phonetic_name: Option<String>,
+	/// "perchannel" | "forcedoff" | "forcedon"
+	codec_encryption_mode: Option<String>,
+}
+
+fn parse_host_message_mode(s: &str) -> Option<HostMessageMode> {
+	match s.to_ascii_lowercase().as_str() {
+		"none" => Some(HostMessageMode::None),
+		"log" => Some(HostMessageMode::Log),
+		"modal" => Some(HostMessageMode::Modal),
+		"modalquit" => Some(HostMessageMode::Modalquit),
+		_ => None,
+	}
+}
+
+fn parse_host_banner_mode(s: &str) -> Option<HostBannerMode> {
+	match s.to_ascii_lowercase().as_str() {
+		"noadjust" => Some(HostBannerMode::NoAdjust),
+		"adjustignoreaspect" => Some(HostBannerMode::AdjustIgnoreAspect),
+		"adjustkeepaspect" => Some(HostBannerMode::AdjustKeepAspect),
+		_ => None,
+	}
+}
+
+fn parse_codec_encryption_mode(s: &str) -> Option<CodecEncryptionMode> {
+	match s.to_ascii_lowercase().as_str() {
+		"perchannel" => Some(CodecEncryptionMode::PerChannel),
+		"forcedoff" => Some(CodecEncryptionMode::ForcedOff),
+		"forcedon" => Some(CodecEncryptionMode::ForcedOn),
+		_ => None,
+	}
 }
 
 /// Human-facing entries for the Server tab's log-style notifications
@@ -740,6 +799,73 @@ async fn run(args: Args) -> Result<()> {
 								}
 							}
 							Err(_) => emit(&Event::Error { message: format!("Invalid client id: {id_str}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("serveredit ") {
+						match serde_json::from_str::<ServerEditPayload>(rest) {
+							Ok(payload) => {
+								let mut part = con.get_state()?.server.edit();
+								if let Some(v) = &payload.name {
+									part = part.set_name(v);
+								}
+								if let Some(v) = &payload.welcome_message {
+									part = part.set_welcome_message(v);
+								}
+								if let Some(v) = &payload.password {
+									part = part.set_password(if v.is_empty() { None } else { Some(v) });
+								}
+								if let Some(v) = payload.max_clients {
+									part = part.set_max_clients(v);
+								}
+								if let Some(v) = &payload.hostmessage {
+									part = part.set_hostmessage(v);
+								}
+								if let Some(mode) =
+									payload.hostmessage_mode.as_deref().and_then(parse_host_message_mode)
+								{
+									part = part.set_hostmessage_mode(mode);
+								}
+								if let Some(v) = &payload.hostbanner_url {
+									part = part.set_hostbanner_url(v);
+								}
+								if let Some(v) = &payload.hostbanner_gfx_url {
+									part = part.set_hostbanner_gfx_url(v);
+								}
+								if let Some(secs) = payload.hostbanner_gfx_interval_secs {
+									part = part.set_hostbanner_gfx_interval(time::Duration::seconds(secs));
+								}
+								if let Some(mode) =
+									payload.hostbanner_mode.as_deref().and_then(parse_host_banner_mode)
+								{
+									part = part.set_hostbanner_mode(mode);
+								}
+								if let Some(v) = &payload.hostbutton_tooltip {
+									part = part.set_hostbutton_tooltip(v);
+								}
+								if let Some(v) = &payload.hostbutton_url {
+									part = part.set_hostbutton_url(v);
+								}
+								if let Some(v) = &payload.hostbutton_gfx_url {
+									part = part.set_hostbutton_gfx_url(v);
+								}
+								if let Some(v) = &payload.nickname {
+									part = part.set_nickname(v);
+								}
+								if let Some(v) = &payload.phonetic_name {
+									part = part.set_phonetic_name(v);
+								}
+								if let Some(mode) =
+									payload.codec_encryption_mode.as_deref().and_then(parse_codec_encryption_mode)
+								{
+									part = part.set_codec_encryption_mode(mode);
+								}
+								match part.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Server edit".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							Err(e) => emit(&Event::Error { message: format!("Invalid server edit payload: {e}") }),
 						}
 					} else if l == "serverconninfo" {
 						let part = con.get_state()?.server.connection_info();

@@ -142,6 +142,10 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.banClient(msg.clientId, msg.seconds ?? 0, msg.reason ?? "");
         break;
       }
+      case "editServer": {
+        await connection?.editServer(msg.payload ?? {});
+        break;
+      }
       case "disconnect": {
         await connection?.disconnect(msg.message ?? "");
         break;

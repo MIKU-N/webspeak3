@@ -75,6 +75,10 @@ const ACTIVE_IDENTITY_KEY = "webspeak3:active-identity";
 interface Identity {
   id: string;
   name: string;
+  /** Per-identity nickname/phonetic nickname, like the native client - selecting
+   *  an identity in the connect dialog fills these in. Empty until first set. */
+  nickname: string;
+  phoneticName: string;
   /** Opaque tsclientlib identity blob - null until the first successful connect generates one. */
   blob: string | null;
 }
@@ -85,8 +89,11 @@ interface Identity {
 (function ensureIdentitiesSeeded() {
   if (localStorage.getItem(IDENTITIES_KEY) !== null) return;
   const legacyBlob = localStorage.getItem(IDENTITY_KEY);
+  const legacyNickname = localStorage.getItem(LAST_NICKNAME_KEY) ?? "";
   const id = crypto.randomUUID();
-  const identities: Identity[] = [{ id, name: "Standard", blob: legacyBlob }];
+  const identities: Identity[] = [
+    { id, name: "Standard", nickname: legacyNickname, phoneticName: "", blob: legacyBlob },
+  ];
   localStorage.setItem(IDENTITIES_KEY, JSON.stringify(identities));
   localStorage.setItem(ACTIVE_IDENTITY_KEY, id);
   localStorage.removeItem(IDENTITY_KEY);
@@ -95,12 +102,22 @@ interface Identity {
 function loadIdentities(): Identity[] {
   try {
     const raw = localStorage.getItem(IDENTITIES_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Identity[]) : [];
-    if (parsed.length > 0) return parsed;
+    const parsed = raw ? (JSON.parse(raw) as Partial<Identity>[]) : [];
+    if (parsed.length > 0) {
+      // Backfill fields older saves (before per-identity nickname/phonetic
+      // name existed) don't have.
+      return parsed.map((i) => ({
+        id: i.id ?? crypto.randomUUID(),
+        name: i.name ?? "Standard",
+        nickname: i.nickname ?? "",
+        phoneticName: i.phoneticName ?? "",
+        blob: i.blob ?? null,
+      }));
+    }
   } catch {
     // fall through
   }
-  return [{ id: crypto.randomUUID(), name: "Standard", blob: null }];
+  return [{ id: crypto.randomUUID(), name: "Standard", nickname: "", phoneticName: "", blob: null }];
 }
 
 const FAVORITES_KEY = "webspeak3:favorites";
@@ -2730,25 +2747,50 @@ function ServerConnectionInfoDialog({
   );
 }
 
+/** Mirrors the native client's "Identitäten" window: a list on the left plus
+ *  a detail panel on the right (Name/Nickname/Phonetischer Nickname/
+ *  Eindeutige ID), rather than the old flat list-with-inline-rename layout.
+ *  The native window also has a myTeamSpeak-synced identity list and a
+ *  "Sicherheitsstufe erhöhen" button - both deliberately out of scope here:
+ *  the former needs a whole separate cloud-account system this self-hosted
+ *  client doesn't have, and the latter (tsclientlib's proof-of-work identity
+ *  level increase) already runs automatically during connect whenever a
+ *  server demands a higher level, so there's nothing a manual button would
+ *  add beyond letting you pre-compute it before connecting. */
 function IdentitiesDialog({
   identities,
   activeId,
+  ownUid,
   onActivate,
   onAdd,
   onRename,
+  onNicknameChange,
+  onPhoneticChange,
   onDelete,
+  onExport,
+  onImport,
   onClose,
 }: {
   identities: Identity[];
   activeId: string | null;
+  /** The connected own client's unique ID, if currently connected with the
+   *  active identity - shown as that identity's "Eindeutige ID". */
+  ownUid: string | null;
   onActivate: (id: string) => void;
   onAdd: () => void;
   onRename: (id: string, name: string) => void;
+  onNicknameChange: (id: string, value: string) => void;
+  onPhoneticChange: (id: string, value: string) => void;
   onDelete: (id: string) => void;
+  onExport: (id: string) => void;
+  onImport: (file: File) => void;
   onClose: () => void;
 }) {
   const t = useT();
   const backdrop = useBackdropDismiss(onClose);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [selectedId, setSelectedId] = useState(activeId ?? identities[0]?.id ?? null);
+  const selected = identities.find((i) => i.id === selectedId) ?? identities[0] ?? null;
 
   return (
     <div className="ts-dialog-backdrop" {...backdrop}>
@@ -2759,41 +2801,102 @@ function IdentitiesDialog({
             ✕
           </button>
         </div>
-        <div className="ts-dialog-body">
-          <ul className="ts-identities-list">
-            {identities.map((identity) => (
-              <li
-                key={identity.id}
-                className={`ts-identities-item${identity.id === activeId ? " ts-identities-item-active" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="active-identity"
-                  checked={identity.id === activeId}
-                  onChange={() => onActivate(identity.id)}
-                  title={t("identities.activate")}
-                />
-                <input
-                  className="ts-identities-name"
-                  value={identity.name}
-                  onChange={(e) => onRename(identity.id, e.target.value)}
-                />
-                <span className="ts-identities-status">
-                  {identity.blob ? t("identities.generated") : t("identities.pending")}
-                </span>
-                <button
-                  disabled={identities.length <= 1}
-                  onClick={() => onDelete(identity.id)}
-                  title={t("identities.delete")}
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ul>
+        <div className="ts-dialog-body ts-identities-body">
+          <div>
+            <div className="ts-identities-list-label">{t("identities.listLabel")}</div>
+            <ul className="ts-identities-list">
+              {identities.map((identity) => (
+                <li key={identity.id}>
+                  <button
+                    className={`ts-link-button ts-identities-list-item${
+                      identity.id === selectedId ? " ts-perms-editor-selected" : ""
+                    }${identity.id === activeId ? " ts-identities-list-item-default" : ""}`}
+                    onClick={() => setSelectedId(identity.id)}
+                    title={identity.id === activeId ? t("identities.isDefault") : undefined}
+                  >
+                    {identity.id === activeId ? "★ " : ""}
+                    {identity.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="ts-identities-detail">
+            {selected && (
+              <>
+                <label className="ts-dialog-field">
+                  {t("identities.name")}
+                  <input value={selected.name} onChange={(e) => onRename(selected.id, e.target.value)} />
+                </label>
+                <label className="ts-dialog-field">
+                  {t("connect.nickname")}
+                  <input
+                    value={selected.nickname}
+                    onChange={(e) => onNicknameChange(selected.id, e.target.value)}
+                  />
+                </label>
+                <label className="ts-dialog-field">
+                  {t("identities.phoneticNickname")}
+                  <input
+                    value={selected.phoneticName}
+                    onChange={(e) => onPhoneticChange(selected.id, e.target.value)}
+                  />
+                </label>
+                <label className="ts-dialog-field">
+                  {t("identities.uniqueId")}
+                  <input
+                    readOnly
+                    value={selected.id === activeId && ownUid ? ownUid : t("identities.unknown")}
+                    className="ts-identities-readonly"
+                  />
+                </label>
+                <div className="ts-identities-status">
+                  {selected.blob ? t("identities.generated") : t("identities.pending")}
+                </div>
+              </>
+            )}
+          </div>
         </div>
         <div className="ts-dialog-buttons">
-          <button onClick={onAdd}>{t("identities.add")}</button>
+          <div>
+            <button onClick={onAdd}>{t("identities.add")}</button>
+            <button onClick={() => importInputRef.current?.click()}>{t("identities.import")}</button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json,application/json"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) onImport(file);
+              }}
+            />
+            {selected && (
+              <>
+                <button disabled={!selected.blob} onClick={() => onExport(selected.id)}>
+                  {t("identities.export")}
+                </button>
+                <button onClick={() => onActivate(selected.id)} disabled={selected.id === activeId}>
+                  {t("identities.setDefault")}
+                </button>
+                <button
+                  disabled={identities.length <= 1}
+                  onClick={() => {
+                    const wasActive = selected.id === activeId;
+                    const idx = identities.findIndex((i) => i.id === selected.id);
+                    onDelete(selected.id);
+                    if (selected.id === selectedId) {
+                      const remaining = identities.filter((i) => i.id !== selected.id);
+                      setSelectedId((wasActive ? remaining[0] : remaining[Math.max(0, idx - 1)])?.id ?? null);
+                    }
+                  }}
+                >
+                  {t("identities.delete")}
+                </button>
+              </>
+            )}
+          </div>
           <div className="ts-dialog-buttons-right">
             <button onClick={onClose}>{t("dialog.close")}</button>
           </div>
@@ -4324,9 +4427,13 @@ function AppInner() {
           setConnected(true);
           localStorage.setItem(LAST_HOST_KEY, connectHost);
           localStorage.setItem(LAST_NICKNAME_KEY, connectNickname);
-          if (data.identity && connectIdentityId) {
+          if (connectIdentityId) {
             setIdentities((prev) =>
-              prev.map((i) => (i.id === connectIdentityId ? { ...i, blob: data.identity } : i))
+              prev.map((i) =>
+                i.id === connectIdentityId
+                  ? { ...i, blob: data.identity || i.blob, nickname: connectNickname }
+                  : i
+              )
             );
           }
           setServerName(data.serverName);
@@ -5178,13 +5285,38 @@ function AppInner() {
     setWhisperLists((prev) => prev.filter((list) => list.id !== id));
   };
 
+  /** Switching identities (in the connect dialog's picker) also switches the
+   *  nickname field to that identity's own remembered nickname, like the
+   *  native client - only when it actually has one saved, so a fresh
+   *  identity doesn't blank out what the user already typed. */
+  const handleActiveIdentityChange = (id: string) => {
+    setActiveIdentityId(id);
+    const identity = identities.find((i) => i.id === id);
+    if (identity?.nickname) setNickname(identity.nickname);
+  };
+
   const handleAddIdentity = () => {
-    const identity: Identity = { id: crypto.randomUUID(), name: t("identities.newName"), blob: null };
+    const identity: Identity = {
+      id: crypto.randomUUID(),
+      name: t("identities.newName"),
+      nickname: "",
+      phoneticName: "",
+      blob: null,
+    };
     setIdentities((prev) => [...prev, identity]);
   };
 
   const handleRenameIdentity = (id: string, name: string) => {
     setIdentities((prev) => prev.map((i) => (i.id === id ? { ...i, name } : i)));
+  };
+
+  const handleIdentityNicknameChange = (id: string, value: string) => {
+    setIdentities((prev) => prev.map((i) => (i.id === id ? { ...i, nickname: value } : i)));
+    if (id === activeIdentityId) setNickname(value);
+  };
+
+  const handleIdentityPhoneticChange = (id: string, value: string) => {
+    setIdentities((prev) => prev.map((i) => (i.id === id ? { ...i, phoneticName: value } : i)));
   };
 
   const handleDeleteIdentity = (id: string) => {
@@ -5194,6 +5326,40 @@ function AppInner() {
       if (activeIdentityId === id) setActiveIdentityId(next[0]?.id ?? null);
       return next;
     });
+  };
+
+  /** Downloads one identity's opaque tsclientlib blob as a JSON file - the
+   *  same file this dialog's "Importieren" button reads back in, so it
+   *  doubles as a backup/transfer mechanism between browsers or devices. */
+  const handleExportIdentity = (id: string) => {
+    const identity = identities.find((i) => i.id === id);
+    if (!identity?.blob) return;
+    const blob = new Blob([identity.blob], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${identity.name.replace(/[^a-z0-9_-]+/gi, "_") || "identity"}.ts3identity.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportIdentity = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = (reader.result as string).trim();
+      try {
+        JSON.parse(text);
+      } catch {
+        logClient("error", "Identitäten", `"${file.name}" ist keine gültige Identitätsdatei.`);
+        return;
+      }
+      const name = file.name.replace(/\.(ts3identity\.)?json$/i, "") || t("identities.newName");
+      const identity: Identity = { id: crypto.randomUUID(), name, nickname: "", phoneticName: "", blob: text };
+      setIdentities((prev) => [...prev, identity]);
+    };
+    reader.readAsText(file);
   };
 
   const handleShowClientConnectionInfo = (clientId: number, clientName: string) => {
@@ -6235,7 +6401,7 @@ function AppInner() {
           onServerPasswordChange={setServerPassword}
           onChannelPasswordChange={setChannelPassword}
           onDefaultChannelChange={setDefaultChannel}
-          onActiveIdentityChange={setActiveIdentityId}
+          onActiveIdentityChange={handleActiveIdentityChange}
           onToggleExpanded={() => setConnectDialogExpanded((v) => !v)}
           onConnect={handleConnect}
           onCancel={() => setConnectDialogOpen(false)}
@@ -6295,10 +6461,15 @@ function AppInner() {
         <IdentitiesDialog
           identities={identities}
           activeId={activeIdentityId}
+          ownUid={connected ? ownClient?.uid ?? null : null}
           onActivate={setActiveIdentityId}
           onAdd={handleAddIdentity}
           onRename={handleRenameIdentity}
+          onNicknameChange={handleIdentityNicknameChange}
+          onPhoneticChange={handleIdentityPhoneticChange}
           onDelete={handleDeleteIdentity}
+          onExport={handleExportIdentity}
+          onImport={handleImportIdentity}
           onClose={() => setIdentitiesOpen(false)}
         />
       )}

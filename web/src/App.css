@@ -996,7 +996,19 @@
 }
 
 .ts-identities-dialog {
-  width: 460px;
+  width: 520px;
+}
+
+.ts-identities-body {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.ts-identities-list-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
 }
 
 .ts-identities-list {
@@ -1005,32 +1017,45 @@
   padding: 0;
   border: 1px solid var(--border-soft);
   border-radius: 3px;
+  width: 180px;
   max-height: 260px;
   overflow-y: auto;
 }
 
-.ts-identities-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.5rem;
+.ts-identities-list li {
   border-bottom: 1px solid var(--border-soft);
+}
+
+.ts-identities-list li:last-child {
+  border-bottom: none;
+}
+
+.ts-identities-list-item {
+  display: block;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
   font-size: 12px;
 }
 
-.ts-identities-item-active {
-  background: var(--accent-soft, rgba(78, 161, 247, 0.15));
+.ts-identities-list-item-default {
+  font-weight: bold;
 }
 
-.ts-identities-name {
+.ts-identities-detail {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.ts-identities-readonly {
+  color: var(--text-muted);
 }
 
 .ts-identities-status {
   color: var(--text-muted);
   font-size: 11px;
-  white-space: nowrap;
 }
 
 .ts-log-level-row {

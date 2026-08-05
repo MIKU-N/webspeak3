@@ -238,6 +238,38 @@ enum Event {
 	/// client-join/channel-edit/etc. feed for the Server tab).
 	#[serde(rename = "serverProtocolLog")]
 	ServerProtocolLog { lines: Vec<String> },
+	/// Reply to a "banlist" request.
+	#[serde(rename = "banList")]
+	BanList { entries: Vec<BanListEntry> },
+	/// Reply to a "complainlist" request.
+	#[serde(rename = "complainList")]
+	ComplainList { entries: Vec<ComplainListEntry> },
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BanListEntry {
+	ban_id: u32,
+	ip: String,
+	name: String,
+	uid: String,
+	last_nickname: String,
+	created: String,
+	duration_secs: i64,
+	invoker_name: String,
+	reason: String,
+	enforcements: u32,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ComplainListEntry {
+	target_client_db_id: u64,
+	target_name: String,
+	from_client_db_id: u64,
+	from_name: String,
+	message: String,
+	timestamp: String,
 }
 
 fn emit(event: &Event) {
@@ -553,6 +585,8 @@ async fn run(args: Args) -> Result<()> {
 	// arrives as a StreamItem::MessageEvent (not a BookEvents batch, since log
 	// lines aren't part of the channel/client/server data model).
 	let mut pending_server_log = false;
+	let mut pending_ban_list = false;
+	let mut pending_complain_list = false;
 
 	enum LoopOutcome {
 		StdinLine(std::io::Result<Option<String>>),
@@ -894,6 +928,92 @@ async fn run(args: Args) -> Result<()> {
 							}
 							Err(e) => emit(&Event::Error { message: e.to_string() }),
 						}
+					} else if l == "banlist" {
+						// No typed builder exists for banlist, so this is built as a raw
+						// command; the reply arrives via StreamItem::MessageEvent (see below).
+						let packet = OutCommand::new(Direction::C2S, Flags::empty(), PacketType::Command, "banlist");
+						match packet.send_with_result(&mut con) {
+							Ok(handle) => {
+								pending_ban_list = true;
+								pending_messages.insert(handle, "Ban list".into());
+							}
+							Err(e) => emit(&Event::Error { message: e.to_string() }),
+						}
+					} else if let Some(rest) = l.strip_prefix("bandel ") {
+						match rest.trim().parse::<u32>() {
+							Ok(ban_id) => {
+								let mut packet =
+									OutCommand::new(Direction::C2S, Flags::empty(), PacketType::Command, "bandel");
+								packet.write_arg("banid", &ban_id);
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Delete ban".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid ban id: {rest}") }),
+						}
+					} else if l == "bandelall" {
+						let packet = OutCommand::new(Direction::C2S, Flags::empty(), PacketType::Command, "bandelall");
+						match packet.send_with_result(&mut con) {
+							Ok(handle) => {
+								pending_messages.insert(handle, "Delete all bans".into());
+							}
+							Err(e) => emit(&Event::Error { message: e.to_string() }),
+						}
+					} else if l == "complainlist" {
+						let packet =
+							OutCommand::new(Direction::C2S, Flags::empty(), PacketType::Command, "complainlist");
+						match packet.send_with_result(&mut con) {
+							Ok(handle) => {
+								pending_complain_list = true;
+								pending_messages.insert(handle, "Complain list".into());
+							}
+							Err(e) => emit(&Event::Error { message: e.to_string() }),
+						}
+					} else if let Some(rest) = l.strip_prefix("complaindel ") {
+						let mut parts = rest.trim().splitn(2, ' ');
+						let target_str = parts.next().unwrap_or("");
+						let from_str = parts.next().unwrap_or("");
+						match (target_str.parse::<u64>(), from_str.parse::<u64>()) {
+							(Ok(tcldbid), Ok(fcldbid)) => {
+								let mut packet = OutCommand::new(
+									Direction::C2S,
+									Flags::empty(),
+									PacketType::Command,
+									"complaindel",
+								);
+								packet.write_arg("tcldbid", &tcldbid);
+								packet.write_arg("fcldbid", &fcldbid);
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Delete complaint".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							_ => emit(&Event::Error { message: format!("Invalid complaindel args: {rest}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("complaindelall ") {
+						match rest.trim().parse::<u64>() {
+							Ok(tcldbid) => {
+								let mut packet = OutCommand::new(
+									Direction::C2S,
+									Flags::empty(),
+									PacketType::Command,
+									"complaindelall",
+								);
+								packet.write_arg("tcldbid", &tcldbid);
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Delete all complaints for client".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid client db id: {rest}") }),
+						}
 					} else if let Some(b64) = l.strip_prefix("audio ") {
 						match base64::engine::general_purpose::STANDARD.decode(b64.trim()) {
 							Ok(bytes) => {
@@ -1073,6 +1193,44 @@ async fn run(args: Args) -> Result<()> {
 							let lines: Vec<String> = log.iter().map(|part| part.log.clone()).collect();
 							emit(&Event::ServerProtocolLog { lines });
 							pending_server_log = false;
+						}
+					}
+					if pending_ban_list {
+						if let InMessage::BanList(list) = &msg {
+							let entries: Vec<BanListEntry> = list
+								.iter()
+								.map(|part| BanListEntry {
+									ban_id: part.ban_id,
+									ip: part.ip.to_string(),
+									name: part.name.clone(),
+									uid: part.uid.to_string(),
+									last_nickname: part.last_nickname.clone(),
+									created: part.created.to_string(),
+									duration_secs: part.duration.whole_seconds(),
+									invoker_name: part.invoker_name.clone(),
+									reason: part.reason.clone(),
+									enforcements: part.enforcements,
+								})
+								.collect();
+							emit(&Event::BanList { entries });
+							pending_ban_list = false;
+						}
+					}
+					if pending_complain_list {
+						if let InMessage::ComplainList(list) = &msg {
+							let entries: Vec<ComplainListEntry> = list
+								.iter()
+								.map(|part| ComplainListEntry {
+									target_client_db_id: part.target_client_db_id.0,
+									target_name: part.target_name.clone(),
+									from_client_db_id: part.from_client_db_id.0,
+									from_name: part.from_name.clone(),
+									message: part.message.clone(),
+									timestamp: part.timestamp.to_string(),
+								})
+								.collect();
+							emit(&Event::ComplainList { entries });
+							pending_complain_list = false;
 						}
 					}
 				}

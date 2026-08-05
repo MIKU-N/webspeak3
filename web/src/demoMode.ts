@@ -215,6 +215,66 @@ export class DemoSocket {
         );
         break;
       }
+      case "getBanList": {
+        this.after(400, () =>
+          this.emit({
+            type: "banList",
+            entries: [
+              {
+                banId: 1,
+                ip: "203.0.113.42",
+                name: "TrollUser",
+                uid: "demo-uid-troll",
+                lastNickname: "TrollUser",
+                created: "2026-07-28 14:02:11",
+                durationSecs: 0,
+                invokerName: "Alex",
+                reason: "Spamming the server chat",
+                enforcements: 0,
+              },
+              {
+                banId: 2,
+                ip: "198.51.100.7",
+                name: "",
+                uid: "demo-uid-annoying",
+                lastNickname: "AnnoyingGuest",
+                created: "2026-08-01 09:44:53",
+                durationSecs: 3600,
+                invokerName: "Sam",
+                reason: "Repeated channel spam",
+                enforcements: 1,
+              },
+            ],
+          })
+        );
+        break;
+      }
+      case "deleteBan":
+      case "deleteAllBans":
+        // No observable effect - the frontend already optimistically removes
+        // the deleted row(s) from its own state.
+        break;
+      case "getComplainList": {
+        this.after(400, () =>
+          this.emit({
+            type: "complainList",
+            entries: [
+              {
+                targetClientDbId: 104,
+                targetName: "Jordan",
+                fromClientDbId: 103,
+                fromName: "Sam",
+                message: "Kept talking over everyone in voice chat.",
+                timestamp: "2026-08-02 18:21:07",
+              },
+            ],
+          })
+        );
+        break;
+      }
+      case "deleteComplaint":
+      case "deleteAllComplaintsFor":
+        break;
       // "disconnect" is intentionally unhandled here: handleDisconnect() in
       // App.tsx always calls socket.close() right after sending it, and
       // close() already emits the "disconnected" event below.

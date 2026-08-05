@@ -1058,6 +1058,35 @@
   width: 640px;
 }
 
+.ts-ban-list-dialog,
+.ts-complain-list-dialog {
+  width: 720px;
+}
+
+.ts-ban-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ts-ban-list-table th,
+.ts-ban-list-table td {
+  text-align: left;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: top;
+}
+
+.ts-ban-list-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.ts-dialog-buttons-left {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .ts-server-protocol-log-line {
   padding: 0.15rem 0.4rem;
   border-bottom: 1px solid var(--border-soft);

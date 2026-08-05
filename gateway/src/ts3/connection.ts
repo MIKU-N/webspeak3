@@ -35,6 +35,28 @@ export interface ClientInfo {
   uid: string;
 }
 
+export interface BanListEntry {
+  banId: number;
+  ip: string;
+  name: string;
+  uid: string;
+  lastNickname: string;
+  created: string;
+  durationSecs: number;
+  invokerName: string;
+  reason: string;
+  enforcements: number;
+}
+
+export interface ComplainListEntry {
+  targetClientDbId: number;
+  targetName: string;
+  fromClientDbId: number;
+  fromName: string;
+  message: string;
+  timestamp: string;
+}
+
 export type ServerLogEntry =
   | { kind: "clientJoin"; client: string; channel: string }
   | { kind: "clientLeave"; client: string }
@@ -91,7 +113,9 @@ export type Ts3ConnectionEvent =
       bandwidthSentLastSecond: number;
       bandwidthReceivedLastSecond: number;
     }
-  | { type: "serverProtocolLog"; lines: string[] };
+  | { type: "serverProtocolLog"; lines: string[] }
+  | { type: "banList"; entries: BanListEntry[] }
+  | { type: "complainList"; entries: ComplainListEntry[] };
 
 export interface Ts3ConnectOptions {
   host: string;
@@ -207,7 +231,33 @@ export class Ts3Connection {
               bandwidth_sent_last_second: number;
               bandwidth_received_last_second: number;
             }
-          | { type: "serverProtocolLog"; lines: string[] };
+          | { type: "serverProtocolLog"; lines: string[] }
+          | {
+              type: "banList";
+              entries: {
+                ban_id: number;
+                ip: string;
+                name: string;
+                uid: string;
+                last_nickname: string;
+                created: string;
+                duration_secs: number;
+                invoker_name: string;
+                reason: string;
+                enforcements: number;
+              }[];
+            }
+          | {
+              type: "complainList";
+              entries: {
+                target_client_db_id: number;
+                target_name: string;
+                from_client_db_id: number;
+                from_name: string;
+                message: string;
+                timestamp: string;
+              }[];
+            };
 
         if (event.type === "connected") {
           this.emit({
@@ -280,6 +330,34 @@ export class Ts3Connection {
             bytesReceivedTotal: event.bytes_received_total,
             bandwidthSentLastSecond: event.bandwidth_sent_last_second,
             bandwidthReceivedLastSecond: event.bandwidth_received_last_second,
+          });
+        } else if (event.type === "banList") {
+          this.emit({
+            type: "banList",
+            entries: event.entries.map((e) => ({
+              banId: e.ban_id,
+              ip: e.ip,
+              name: e.name,
+              uid: e.uid,
+              lastNickname: e.last_nickname,
+              created: e.created,
+              durationSecs: e.duration_secs,
+              invokerName: e.invoker_name,
+              reason: e.reason,
+              enforcements: e.enforcements,
+            })),
+          });
+        } else if (event.type === "complainList") {
+          this.emit({
+            type: "complainList",
+            entries: event.entries.map((e) => ({
+              targetClientDbId: e.target_client_db_id,
+              targetName: e.target_name,
+              fromClientDbId: e.from_client_db_id,
+              fromName: e.from_name,
+              message: e.message,
+              timestamp: e.timestamp,
+            })),
           });
         } else {
           this.emit(event);
@@ -355,6 +433,30 @@ export class Ts3Connection {
 
   async getServerLog(): Promise<void> {
     this.child?.stdin.write(`serverlog\n`);
+  }
+
+  async getBanList(): Promise<void> {
+    this.child?.stdin.write(`banlist\n`);
+  }
+
+  async deleteBan(banId: number): Promise<void> {
+    this.child?.stdin.write(`bandel ${banId}\n`);
+  }
+
+  async deleteAllBans(): Promise<void> {
+    this.child?.stdin.write(`bandelall\n`);
+  }
+
+  async getComplainList(): Promise<void> {
+    this.child?.stdin.write(`complainlist\n`);
+  }
+
+  async deleteComplaint(targetClientDbId: number, fromClientDbId: number): Promise<void> {
+    this.child?.stdin.write(`complaindel ${targetClientDbId} ${fromClientDbId}\n`);
+  }
+
+  async deleteAllComplaintsFor(targetClientDbId: number): Promise<void> {
+    this.child?.stdin.write(`complaindelall ${targetClientDbId}\n`);
   }
 
   async sendChatMessage(message: string): Promise<void> {

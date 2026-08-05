@@ -181,6 +181,28 @@ interface WhisperLogEntry {
   description: string;
 }
 
+interface BanListEntry {
+  banId: number;
+  ip: string;
+  name: string;
+  uid: string;
+  lastNickname: string;
+  created: string;
+  durationSecs: number;
+  invokerName: string;
+  reason: string;
+  enforcements: number;
+}
+
+interface ComplainListEntry {
+  targetClientDbId: number;
+  targetName: string;
+  fromClientDbId: number;
+  fromName: string;
+  message: string;
+  timestamp: string;
+}
+
 type ContactCategory = "acquaintance" | "blocked" | "friend";
 
 interface Contact {
@@ -1189,6 +1211,165 @@ function ClientLogDialog({ entries, onClose }: { entries: ClientLogEntry[]; onCl
         </div>
         <div className="ts-dialog-buttons">
           <div />
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BanListDialog({
+  entries,
+  onDelete,
+  onDeleteAll,
+  onClose,
+}: {
+  entries: BanListEntry[] | null;
+  onDelete: (banId: number) => void;
+  onDeleteAll: () => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+  // Same silent-decline story as connection-info/server-log: a guest account
+  // without b_virtualserver_client_dblist/banlist permission never gets a reply.
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    setTimedOut(false);
+    if (entries) return;
+    const id = window.setTimeout(() => setTimedOut(true), 6000);
+    return () => window.clearTimeout(id);
+  }, [entries]);
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-ban-list-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("banList.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          {!entries ? (
+            <div className="ts-connection-info-loading">
+              {timedOut ? t("connectionInfo.unavailable") : t("connectionInfo.loading")}
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="ts-connection-info-loading">{t("banList.empty")}</div>
+          ) : (
+            <table className="ts-ban-list-table">
+              <thead>
+                <tr>
+                  <th>{t("banList.name")}</th>
+                  <th>{t("banList.ip")}</th>
+                  <th>{t("banList.created")}</th>
+                  <th>{t("banList.duration")}</th>
+                  <th>{t("banList.invoker")}</th>
+                  <th>{t("banList.reason")}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((e) => (
+                  <tr key={e.banId}>
+                    <td>{e.name || e.lastNickname || "-"}</td>
+                    <td>{e.ip || "-"}</td>
+                    <td>{e.created}</td>
+                    <td>{e.durationSecs === 0 ? t("banList.permanent") : `${e.durationSecs}s`}</td>
+                    <td>{e.invokerName}</td>
+                    <td>{e.reason}</td>
+                    <td>
+                      <button onClick={() => onDelete(e.banId)}>{t("banList.delete")}</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="ts-dialog-buttons">
+          <div className="ts-dialog-buttons-left">
+            {entries && entries.length > 0 && (
+              <button onClick={onDeleteAll}>{t("banList.deleteAll")}</button>
+            )}
+          </div>
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ComplainListDialog({
+  entries,
+  onDelete,
+  onClose,
+}: {
+  entries: ComplainListEntry[] | null;
+  onDelete: (targetClientDbId: number, fromClientDbId: number) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    setTimedOut(false);
+    if (entries) return;
+    const id = window.setTimeout(() => setTimedOut(true), 6000);
+    return () => window.clearTimeout(id);
+  }, [entries]);
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-complain-list-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("complainList.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          {!entries ? (
+            <div className="ts-connection-info-loading">
+              {timedOut ? t("connectionInfo.unavailable") : t("connectionInfo.loading")}
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="ts-connection-info-loading">{t("complainList.empty")}</div>
+          ) : (
+            <table className="ts-ban-list-table">
+              <thead>
+                <tr>
+                  <th>{t("complainList.target")}</th>
+                  <th>{t("complainList.from")}</th>
+                  <th>{t("complainList.message")}</th>
+                  <th>{t("complainList.timestamp")}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((e, i) => (
+                  <tr key={i}>
+                    <td>{e.targetName}</td>
+                    <td>{e.fromName}</td>
+                    <td>{e.message}</td>
+                    <td>{e.timestamp}</td>
+                    <td>
+                      <button onClick={() => onDelete(e.targetClientDbId, e.fromClientDbId)}>
+                        {t("banList.delete")}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="ts-dialog-buttons">
           <div className="ts-dialog-buttons-right">
             <button onClick={onClose}>{t("dialog.close")}</button>
           </div>
@@ -2676,6 +2857,10 @@ function AppInner() {
   const [serverEditOpen, setServerEditOpen] = useState(false);
   const [serverProtocolLogOpen, setServerProtocolLogOpen] = useState(false);
   const [serverProtocolLog, setServerProtocolLog] = useState<string[] | null>(null);
+  const [banListOpen, setBanListOpen] = useState(false);
+  const [banList, setBanList] = useState<BanListEntry[] | null>(null);
+  const [complainListOpen, setComplainListOpen] = useState(false);
+  const [complainList, setComplainList] = useState<ComplainListEntry[] | null>(null);
   const [treeWidth, setTreeWidth] = useState(260);
   const [upperHeight, setUpperHeight] = useState(340);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -3239,6 +3424,12 @@ function AppInner() {
           break;
         case "serverProtocolLog":
           setServerProtocolLog(data.lines);
+          break;
+        case "banList":
+          setBanList(data.entries);
+          break;
+        case "complainList":
+          setComplainList(data.entries);
           break;
       }
     };
@@ -3816,6 +4007,41 @@ function AppInner() {
     socketRef.current?.send(JSON.stringify({ type: "getServerLog" }));
   };
 
+  const handleShowBanList = () => {
+    setBanListOpen(true);
+    setBanList(null);
+    socketRef.current?.send(JSON.stringify({ type: "getBanList" }));
+  };
+
+  const handleDeleteBan = (banId: number) => {
+    socketRef.current?.send(JSON.stringify({ type: "deleteBan", banId }));
+    setBanList((prev) => (prev ? prev.filter((e) => e.banId !== banId) : prev));
+  };
+
+  const handleDeleteAllBans = () => {
+    socketRef.current?.send(JSON.stringify({ type: "deleteAllBans" }));
+    setBanList([]);
+  };
+
+  const handleShowComplainList = () => {
+    setComplainListOpen(true);
+    setComplainList(null);
+    socketRef.current?.send(JSON.stringify({ type: "getComplainList" }));
+  };
+
+  const handleDeleteComplaint = (targetClientDbId: number, fromClientDbId: number) => {
+    socketRef.current?.send(
+      JSON.stringify({ type: "deleteComplaint", targetClientDbId, fromClientDbId })
+    );
+    setComplainList((prev) =>
+      prev
+        ? prev.filter(
+            (e) => !(e.targetClientDbId === targetClientDbId && e.fromClientDbId === fromClientDbId)
+          )
+        : prev
+    );
+  };
+
   const handleClientContextMenu = (
     e: React.MouseEvent,
     clientId: number,
@@ -4174,17 +4400,32 @@ function AppInner() {
                 <span className="ts-menu-item-shortcut">Strg+L</span>
               </button>
               <div className="ts-menu-separator" />
-              {[
-                { icon: "🚫", label: t("menu.extras.banList"), shortcut: "Strg+Umschalt+B" },
-                { icon: "⚠️", label: t("menu.extras.complaintList"), shortcut: "Strg+Umschalt+C" },
-                { icon: "🔑", label: t("menu.extras.serverQueryLogin") },
-              ].map((item) => (
-                <button key={item.label} className="ts-menu-item" disabled>
-                  <span className="ts-menu-item-icon">{item.icon}</span>
-                  <span className="ts-menu-item-label">{item.label}</span>
-                  {item.shortcut && <span className="ts-menu-item-shortcut">{item.shortcut}</span>}
-                </button>
-              ))}
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  handleShowBanList();
+                  setExtrasMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">🚫</span>
+                <span className="ts-menu-item-label">{t("menu.extras.banList")}</span>
+                <span className="ts-menu-item-shortcut">Strg+Umschalt+B</span>
+              </button>
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  handleShowComplainList();
+                  setExtrasMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">⚠️</span>
+                <span className="ts-menu-item-label">{t("menu.extras.complaintList")}</span>
+                <span className="ts-menu-item-shortcut">Strg+Umschalt+C</span>
+              </button>
+              <button className="ts-menu-item" disabled>
+                <span className="ts-menu-item-icon">🔑</span>
+                <span className="ts-menu-item-label">{t("menu.extras.serverQueryLogin")}</span>
+              </button>
               <button
                 className="ts-menu-item"
                 onClick={() => {
@@ -4542,6 +4783,23 @@ function AppInner() {
         <ServerProtocolLogDialog
           lines={serverProtocolLog}
           onClose={() => setServerProtocolLogOpen(false)}
+        />
+      )}
+
+      {banListOpen && (
+        <BanListDialog
+          entries={banList}
+          onDelete={handleDeleteBan}
+          onDeleteAll={handleDeleteAllBans}
+          onClose={() => setBanListOpen(false)}
+        />
+      )}
+
+      {complainListOpen && (
+        <ComplainListDialog
+          entries={complainList}
+          onDelete={handleDeleteComplaint}
+          onClose={() => setComplainListOpen(false)}
         />
       )}
 

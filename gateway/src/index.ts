@@ -150,6 +150,30 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.getServerLog();
         break;
       }
+      case "getBanList": {
+        await connection?.getBanList();
+        break;
+      }
+      case "deleteBan": {
+        await connection?.deleteBan(msg.banId);
+        break;
+      }
+      case "deleteAllBans": {
+        await connection?.deleteAllBans();
+        break;
+      }
+      case "getComplainList": {
+        await connection?.getComplainList();
+        break;
+      }
+      case "deleteComplaint": {
+        await connection?.deleteComplaint(msg.targetClientDbId, msg.fromClientDbId);
+        break;
+      }
+      case "deleteAllComplaintsFor": {
+        await connection?.deleteAllComplaintsFor(msg.targetClientDbId);
+        break;
+      }
       case "disconnect": {
         await connection?.disconnect(msg.message ?? "");
         break;

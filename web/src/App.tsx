@@ -2072,7 +2072,19 @@ function PermissionsEditorDialog({
   const [addNegated, setAddNegated] = useState(false);
   const [addSkip, setAddSkip] = useState(false);
 
+  const isGroupScope = scope === "server" || scope === "channelgroup";
   const groupList = scope === "server" ? serverGroups : scope === "channelgroup" ? channelGroups : null;
+  // The channelgrouplist/servergrouplist requests decline silently when the
+  // account lacks the permission to see them (no reply at all, same as
+  // banlist/complainlist elsewhere) - without this, a permission-limited
+  // account just sees a permanently blank panel with no explanation.
+  const [groupsTimedOut, setGroupsTimedOut] = useState(false);
+  useEffect(() => {
+    setGroupsTimedOut(false);
+    if (groupList) return;
+    const id = window.setTimeout(() => setGroupsTimedOut(true), 6000);
+    return () => window.clearTimeout(id);
+  }, [groupList]);
 
   // (ids, ready) for the currently selected target under the active tab -
   // ready is false while a required piece (channel/client) hasn't been picked yet.
@@ -2146,24 +2158,31 @@ function PermissionsEditorDialog({
         </div>
         <div className="ts-dialog-body ts-perms-editor-body">
           <div className="ts-perms-editor-picker">
-            {groupList && (
-              <ul className="ts-perms-editor-list">
-                {groupList.length === 0 && <li className="ts-perms-editor-list-empty">{t("groupAssign.empty")}</li>}
-                {groupList.map((g) => (
-                  <li key={g.id}>
-                    <button
-                      className={`ts-link-button${groupId === g.id ? " ts-perms-editor-selected" : ""}`}
-                      onClick={() => {
-                        setGroupId(g.id);
-                        load({ scope, groupId: g.id });
-                      }}
-                    >
-                      {g.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            {isGroupScope &&
+              (groupList ? (
+                <ul className="ts-perms-editor-list">
+                  {groupList.length === 0 && (
+                    <li className="ts-perms-editor-list-empty">{t("groupAssign.empty")}</li>
+                  )}
+                  {groupList.map((g) => (
+                    <li key={g.id}>
+                      <button
+                        className={`ts-link-button${groupId === g.id ? " ts-perms-editor-selected" : ""}`}
+                        onClick={() => {
+                          setGroupId(g.id);
+                          load({ scope, groupId: g.id });
+                        }}
+                      >
+                        {g.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="ts-connection-info-loading">
+                  {groupsTimedOut ? t("connectionInfo.unavailable") : t("connectionInfo.loading")}
+                </div>
+              ))}
             {(scope === "channel" || scope === "channelclient") && (
               <ul className="ts-perms-editor-list">
                 {channels.map((c) => (

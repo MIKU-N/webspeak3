@@ -265,6 +265,11 @@ enum Event {
 	/// Reply to a "servergrouplist" request.
 	#[serde(rename = "serverGroupList")]
 	ServerGroupList { entries: Vec<GroupEntry> },
+	/// Reply to a "permoverview" request - the caller's own effective
+	/// permissions in their current channel, name-resolved via a cached
+	/// "permissionlist" lookup.
+	#[serde(rename = "permissionOverview")]
+	PermissionOverview { entries: Vec<PermissionOverviewEntry> },
 }
 
 #[derive(Serialize)]
@@ -301,6 +306,16 @@ struct OfflineMessageListEntry {
 	subject: String,
 	timestamp: String,
 	is_read: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PermissionOverviewEntry {
+	name: String,
+	description: String,
+	value: i32,
+	negated: bool,
+	skip: bool,
 }
 
 #[derive(Serialize)]
@@ -632,6 +647,17 @@ async fn run(args: Args) -> Result<()> {
 	let mut pending_offline_message_get = false;
 	let mut pending_channel_group_list = false;
 	let mut pending_server_group_list = false;
+	// Cache of permission id -> (name, description), built lazily from a
+	// "permissionlist" request the first time a "permoverview" is requested;
+	// the mapping is static for the lifetime of the connection so it's only
+	// fetched once.
+	let mut permission_names: std::collections::HashMap<u32, (String, String)> =
+		std::collections::HashMap::new();
+	let mut pending_permission_list = false;
+	let mut pending_perm_overview = false;
+	// Raw permoverview entries received before the permission-name cache was
+	// ready get buffered here and re-emitted once the names arrive.
+	let mut pending_perm_overview_raw: Option<Vec<(u32, i32, bool, bool)>> = None;
 
 	enum LoopOutcome {
 		StdinLine(std::io::Result<Option<String>>),
@@ -1280,6 +1306,47 @@ async fn run(args: Args) -> Result<()> {
 							}
 							None => emit(&Event::Error { message: "Invalid serverquerylogin args".into() }),
 						}
+					} else if l == "permoverview" {
+						let state = con.get_state()?;
+						let own_id = state.own_client;
+						if let Some(own) = state.clients.get(&own_id) {
+							let cid = own.channel.0;
+							let cldbid = own.database_id.0;
+							if permission_names.is_empty() {
+								let packet = OutCommand::new(
+									Direction::C2S,
+									Flags::empty(),
+									PacketType::Command,
+									"permissionlist",
+								);
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_permission_list = true;
+										pending_messages.insert(handle, "Permission list".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							let mut packet = OutCommand::new(
+								Direction::C2S,
+								Flags::empty(),
+								PacketType::Command,
+								"permoverview",
+							);
+							packet.write_arg("cid", &cid);
+							packet.write_arg("cldbid", &cldbid);
+							// permid=0 means "all permissions" - the server requires this
+							// argument even though tsclientlib's generated type treats it
+							// as optional.
+							packet.write_arg("permid", &0u32);
+							match packet.send_with_result(&mut con) {
+								Ok(handle) => {
+									pending_perm_overview = true;
+									pending_messages.insert(handle, "Permission overview".into());
+								}
+								Err(e) => emit(&Event::Error { message: e.to_string() }),
+							}
+						}
 					} else if let Some(b64) = l.strip_prefix("audio ") {
 						match base64::engine::general_purpose::STANDARD.decode(b64.trim()) {
 							Ok(bytes) => {
@@ -1547,6 +1614,68 @@ async fn run(args: Args) -> Result<()> {
 								.collect();
 							emit(&Event::ServerGroupList { entries });
 							pending_server_group_list = false;
+						}
+					}
+					if pending_permission_list {
+						if let InMessage::PermList(list) = &msg {
+							for part in list.iter() {
+								if let Some(id) = part.permission_id {
+									permission_names.insert(
+										id.0,
+										(
+											part.permission_name.clone().unwrap_or_default(),
+											part.permission_description.clone().unwrap_or_default(),
+										),
+									);
+								}
+							}
+							pending_permission_list = false;
+							if let Some(raw) = pending_perm_overview_raw.take() {
+								let entries: Vec<PermissionOverviewEntry> = raw
+									.into_iter()
+									.map(|(id, value, negated, skip)| {
+										let (name, description) = permission_names
+											.get(&id)
+											.cloned()
+											.unwrap_or_else(|| (format!("#{id}"), String::new()));
+										PermissionOverviewEntry { name, description, value, negated, skip }
+									})
+									.collect();
+								emit(&Event::PermissionOverview { entries });
+							}
+						}
+					}
+					if pending_perm_overview {
+						if let InMessage::PermOverview(list) = &msg {
+							let raw: Vec<(u32, i32, bool, bool)> = list
+								.iter()
+								.map(|part| {
+									(
+										part.permission_id.0,
+										part.permission_value,
+										part.permission_negated,
+										part.permission_skip,
+									)
+								})
+								.collect();
+							pending_perm_overview = false;
+							if pending_permission_list {
+								// The name lookup hasn't come back yet - buffer the raw
+								// values and resolve them once it does.
+								pending_perm_overview_raw = Some(raw);
+							} else {
+								let entries: Vec<PermissionOverviewEntry> = raw
+									.into_iter()
+									.map(|(id, value, negated, skip)| {
+										let (name, description) = permission_names
+											.get(&id)
+											.cloned()
+											.unwrap_or_else(|| (format!("#{id}"), String::new()));
+										PermissionOverviewEntry { name, description, value, negated, skip }
+									})
+									.collect();
+								emit(&Event::PermissionOverview { entries });
+							}
 						}
 					}
 				}

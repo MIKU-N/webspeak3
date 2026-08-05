@@ -43,6 +43,14 @@ export interface GroupEntry {
   name: string;
 }
 
+export interface PermissionOverviewEntry {
+  name: string;
+  description: string;
+  value: number;
+  negated: boolean;
+  skip: boolean;
+}
+
 export interface BanListEntry {
   banId: number;
   ip: string;
@@ -142,7 +150,8 @@ export type Ts3ConnectionEvent =
       timestamp: string;
     }
   | { type: "channelGroupList"; entries: GroupEntry[] }
-  | { type: "serverGroupList"; entries: GroupEntry[] };
+  | { type: "serverGroupList"; entries: GroupEntry[] }
+  | { type: "permissionOverview"; entries: PermissionOverviewEntry[] };
 
 export interface Ts3ConnectOptions {
   host: string;
@@ -307,7 +316,11 @@ export class Ts3Connection {
               timestamp: string;
             }
           | { type: "channelGroupList"; entries: { id: number; name: string }[] }
-          | { type: "serverGroupList"; entries: { id: number; name: string }[] };
+          | { type: "serverGroupList"; entries: { id: number; name: string }[] }
+          | {
+              type: "permissionOverview";
+              entries: { name: string; description: string; value: number; negated: boolean; skip: boolean }[];
+            };
 
         if (event.type === "connected") {
           this.emit({
@@ -577,6 +590,10 @@ export class Ts3Connection {
     const u = Buffer.from(username, "utf8").toString("base64");
     const p = Buffer.from(password, "utf8").toString("base64");
     this.child?.stdin.write(`serverquerylogin ${u} ${p}\n`);
+  }
+
+  async getPermissionOverview(): Promise<void> {
+    this.child?.stdin.write(`permoverview\n`);
   }
 
   async sendChatMessage(message: string): Promise<void> {

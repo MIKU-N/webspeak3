@@ -404,6 +404,13 @@ const translations: Record<Lang, Record<string, string>> = {
     "serverQueryLogin.password": "Passwort",
     "serverQueryLogin.login": "Anmelden",
 
+    "permissionOverview.title": "Eigene Rechte",
+    "permissionOverview.empty": "Keine Rechte gefunden.",
+    "permissionOverview.name": "Recht",
+    "permissionOverview.value": "Wert",
+    "permissionOverview.negated": "Negiert",
+    "permissionOverview.skip": "Skip",
+
     "clientContext.privateChat": "Privater Chat",
     "clientContext.poke": "Anstupsen",
     "clientContext.copyName": "Namen kopieren",
@@ -849,6 +856,13 @@ const translations: Record<Lang, Record<string, string>> = {
     "serverQueryLogin.username": "Username",
     "serverQueryLogin.password": "Password",
     "serverQueryLogin.login": "Login",
+
+    "permissionOverview.title": "My Permissions",
+    "permissionOverview.empty": "No permissions found.",
+    "permissionOverview.name": "Permission",
+    "permissionOverview.value": "Value",
+    "permissionOverview.negated": "Negated",
+    "permissionOverview.skip": "Skip",
 
     "clientContext.privateChat": "Private chat",
     "clientContext.poke": "Poke",

@@ -320,6 +320,14 @@ interface GroupEntry {
   name: string;
 }
 
+interface PermissionOverviewEntry {
+  name: string;
+  description: string;
+  value: number;
+  negated: boolean;
+  skip: boolean;
+}
+
 interface ClientConnectionInfoData {
   clientId: number;
   pingMs: number | null;
@@ -1595,6 +1603,86 @@ function GroupAssignDialog({
                 );
               })}
             </ul>
+          )}
+        </div>
+        <div className="ts-dialog-buttons">
+          <div />
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PermissionOverviewDialog({
+  entries,
+  onClose,
+}: {
+  entries: PermissionOverviewEntry[] | null;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+  const [search, setSearch] = useState("");
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    setTimedOut(false);
+    if (entries) return;
+    const id = window.setTimeout(() => setTimedOut(true), 6000);
+    return () => window.clearTimeout(id);
+  }, [entries]);
+
+  const filtered = entries?.filter((e) => e.name.toLowerCase().includes(search.toLowerCase())) ?? null;
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-permission-overview-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("permissionOverview.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          {!entries ? (
+            <div className="ts-connection-info-loading">
+              {timedOut ? t("connectionInfo.unavailable") : t("connectionInfo.loading")}
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="ts-connection-info-loading">{t("permissionOverview.empty")}</div>
+          ) : (
+            <>
+              <div className="ts-dialog-row">
+                <label className="ts-dialog-field ts-dialog-field-grow">
+                  {t("clientLog.filter")}
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} />
+                </label>
+              </div>
+              <div className="ts-permission-overview-scroll">
+                <table className="ts-ban-list-table">
+                  <thead>
+                    <tr>
+                      <th>{t("permissionOverview.name")}</th>
+                      <th>{t("permissionOverview.value")}</th>
+                      <th>{t("permissionOverview.negated")}</th>
+                      <th>{t("permissionOverview.skip")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered!.map((e, i) => (
+                      <tr key={`${e.name}-${i}`} title={e.description || undefined}>
+                        <td>{e.name}</td>
+                        <td>{e.value}</td>
+                        <td>{e.negated ? "✔️" : ""}</td>
+                        <td>{e.skip ? "✔️" : ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
         <div className="ts-dialog-buttons">
@@ -3102,6 +3190,8 @@ function AppInner() {
     clientId: number;
     clientName: string;
   } | null>(null);
+  const [permissionOverviewOpen, setPermissionOverviewOpen] = useState(false);
+  const [permissionOverview, setPermissionOverview] = useState<PermissionOverviewEntry[] | null>(null);
   const [treeWidth, setTreeWidth] = useState(260);
   const [upperHeight, setUpperHeight] = useState(340);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -3697,6 +3787,9 @@ function AppInner() {
           break;
         case "serverGroupList":
           setServerGroups(data.entries);
+          break;
+        case "permissionOverview":
+          setPermissionOverview(data.entries);
           break;
       }
     };
@@ -4446,6 +4539,12 @@ function AppInner() {
     }
   };
 
+  const handleShowPermissionOverview = () => {
+    setPermissionOverviewOpen(true);
+    setPermissionOverview(null);
+    socketRef.current?.send(JSON.stringify({ type: "getPermissionOverview" }));
+  };
+
   const handleSendPoke = () => {
     if (!pokeTarget) return;
     socketRef.current?.send(
@@ -4734,7 +4833,13 @@ function AppInner() {
                 <span className="ts-menu-item-label">{t("menu.rights.overview")}</span>
               </button>
               <div className="ts-menu-separator" />
-              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  handleShowPermissionOverview();
+                  setRightsMenuOpen(false);
+                }}
+              >
                 <span className="ts-menu-item-icon">🙋</span>
                 <span className="ts-menu-item-label">{t("menu.rights.myRights")}</span>
               </button>
@@ -5274,6 +5379,13 @@ function AppInner() {
           })()}
           onSelect={handleSelectGroup}
           onClose={() => setGroupAssignTarget(null)}
+        />
+      )}
+
+      {permissionOverviewOpen && (
+        <PermissionOverviewDialog
+          entries={permissionOverview}
+          onClose={() => setPermissionOverviewOpen(false)}
         />
       )}
 

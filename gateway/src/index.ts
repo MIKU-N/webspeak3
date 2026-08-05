@@ -218,6 +218,10 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.serverQueryLogin(msg.username, msg.password);
         break;
       }
+      case "getPermissionOverview": {
+        await connection?.getPermissionOverview();
+        break;
+      }
       case "disconnect": {
         await connection?.disconnect(msg.message ?? "");
         break;

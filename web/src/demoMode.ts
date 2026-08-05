@@ -367,6 +367,23 @@ export class DemoSocket {
         // No observable effect - the demo has no real ServerQuery backend to
         // authenticate against.
         break;
+      case "getPermissionOverview": {
+        this.after(400, () =>
+          this.emit({
+            type: "permissionOverview",
+            entries: [
+              { name: "b_client_info_view", description: "View own client info", value: 1, negated: false, skip: false },
+              { name: "b_client_permissionoverview_view", description: "View permission overview", value: 1, negated: false, skip: false },
+              { name: "i_channel_join_power", description: "Power to join channels", value: 25, negated: false, skip: false },
+              { name: "i_client_talk_power", description: "Talk power", value: 25, negated: false, skip: false },
+              { name: "b_client_use_priority_speaker", description: "Use priority speaker", value: 0, negated: true, skip: false },
+              { name: "i_client_max_channel_subscriptions", description: "Max channel subscriptions", value: -1, negated: false, skip: false },
+              { name: "b_channel_join_permanent", description: "Join permanent channels", value: 1, negated: false, skip: false },
+            ],
+          })
+        );
+        break;
+      }
       // "disconnect" is intentionally unhandled here: handleDisconnect() in
       // App.tsx always calls socket.close() right after sending it, and
       // close() already emits the "disconnected" event below.

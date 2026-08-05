@@ -2864,7 +2864,7 @@ function IdentitiesDialog({
             <input
               ref={importInputRef}
               type="file"
-              accept=".json,application/json"
+              accept=".json,.ini,application/json,text/plain"
               style={{ display: "none" }}
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -5345,10 +5345,45 @@ function AppInner() {
     URL.revokeObjectURL(url);
   };
 
+  /** Parses the native client's identity .ini format:
+   *  [Identity]
+   *  id=<name, with \xHH-escaped non-ASCII chars>
+   *  identity="<counter>V<base64 key>"
+   *  nickname=<...>
+   *  phonetic_nickname=<...>
+   *  Returns null if it doesn't look like one. */
+  const parseIniIdentity = (text: string): { name: string; nickname: string; phonetic: string; blob: string } | null => {
+    if (!/^\s*\[Identity\]/im.test(text)) return null;
+    const fields: Record<string, string> = {};
+    for (const line of text.split(/\r?\n/)) {
+      const m = line.match(/^(\w+)\s*=\s*(.*)$/);
+      if (!m) continue;
+      let value = m[2].trim();
+      if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
+      // The native client escapes non-ASCII bytes in this file as \xHH.
+      value = value.replace(/\\x([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+      fields[m[1]] = value;
+    }
+    if (!fields.identity) return null;
+    return { name: fields.id ?? "", nickname: fields.nickname ?? "", phonetic: fields.phonetic_nickname ?? "", blob: fields.identity };
+  };
+
   const handleImportIdentity = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       const text = (reader.result as string).trim();
+      const ini = parseIniIdentity(text);
+      if (ini) {
+        const identity: Identity = {
+          id: crypto.randomUUID(),
+          name: ini.name || file.name.replace(/\.ini$/i, "") || t("identities.newName"),
+          nickname: ini.nickname,
+          phoneticName: ini.phonetic,
+          blob: ini.blob,
+        };
+        setIdentities((prev) => [...prev, identity]);
+        return;
+      }
       try {
         JSON.parse(text);
       } catch {

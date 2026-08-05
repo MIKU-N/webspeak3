@@ -588,10 +588,14 @@ async fn run(args: Args) -> Result<()> {
 	tracing_subscriber::fmt().with_env_filter("warn").with_writer(std::io::stderr).init();
 
 	let address = args.address.clone();
+	// Accepts either our own persisted JSON blob (serialized below) or a raw
+	// TS3 identity string ("<counter>V<base64-key>", the format used by the
+	// native client's exported .ini files and teamspeak:// URLs) - the web
+	// client's "Identitäten importieren" can hand in either.
 	let identity = args
 		.identity
 		.as_deref()
-		.and_then(|s| serde_json::from_str::<Identity>(s).ok())
+		.and_then(|s| serde_json::from_str::<Identity>(s).ok().or_else(|| Identity::new_from_str(s).ok()))
 		.unwrap_or_else(Identity::create);
 	let identity_str = serde_json::to_string(&identity).unwrap();
 	let mut con_config = Connection::build(args.address).name(args.nickname).identity(identity);

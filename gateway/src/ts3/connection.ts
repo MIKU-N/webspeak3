@@ -312,6 +312,21 @@ export class Ts3Connection {
     this.child?.stdin.write(`serverconninfo\n`);
   }
 
+  async kickFromChannel(clientId: number, reason: string): Promise<void> {
+    const sanitized = reason.replace(/[\r\n]+/g, " ").trim();
+    this.child?.stdin.write(`kickchannel ${clientId} ${sanitized}\n`);
+  }
+
+  async kickFromServer(clientId: number, reason: string): Promise<void> {
+    const sanitized = reason.replace(/[\r\n]+/g, " ").trim();
+    this.child?.stdin.write(`kickserver ${clientId} ${sanitized}\n`);
+  }
+
+  async banClient(clientId: number, seconds: number, reason: string): Promise<void> {
+    const sanitized = reason.replace(/[\r\n]+/g, " ").trim();
+    this.child?.stdin.write(`banclient ${clientId} ${Math.max(0, Math.floor(seconds))} ${sanitized}\n`);
+  }
+
   async sendChatMessage(message: string): Promise<void> {
     const sanitized = message.replace(/[\r\n]+/g, " ").trim();
     if (sanitized) this.child?.stdin.write(`chat ${sanitized}\n`);

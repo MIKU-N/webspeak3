@@ -130,6 +130,18 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.getServerConnectionInfo();
         break;
       }
+      case "kickFromChannel": {
+        await connection?.kickFromChannel(msg.clientId, msg.reason ?? "");
+        break;
+      }
+      case "kickFromServer": {
+        await connection?.kickFromServer(msg.clientId, msg.reason ?? "");
+        break;
+      }
+      case "banClient": {
+        await connection?.banClient(msg.clientId, msg.seconds ?? 0, msg.reason ?? "");
+        break;
+      }
       case "disconnect": {
         await connection?.disconnect(msg.message ?? "");
         break;

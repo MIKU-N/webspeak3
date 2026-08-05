@@ -18,7 +18,7 @@ use tsclientlib::{
 	data, ChannelId, ClientId, Connection, DisconnectOptions, Identity, MaxClients, MessageHandle,
 	MessageTarget, Reason, StreamItem, TextMessageTargetMode,
 };
-use tsproto_packets::packets::{AudioData, CodecType, OutAudio};
+use tsproto_packets::packets::{AudioData, CodecType, Direction, Flags, OutAudio, OutCommand, PacketType};
 
 /// 20ms frames at 48kHz, which is what TeamSpeak's Opus voice codec expects.
 const FRAME_SAMPLES: usize = 960;
@@ -661,6 +661,85 @@ async fn run(args: Args) -> Result<()> {
 								}
 							}
 							Err(_) => emit(&Event::Error { message: format!("Invalid client id: {rest}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("kickchannel ") {
+						let mut parts = rest.splitn(2, ' ');
+						let id_str = parts.next().unwrap_or("");
+						let reason = parts.next().unwrap_or("").trim();
+						match id_str.trim().parse::<u16>() {
+							Ok(id) => {
+								let client_id = ClientId(id);
+								let part = con.get_state()?.clients.get(&client_id).map(|c| {
+									let kick = c.kick(Reason::KickChannel);
+									if reason.is_empty() { kick } else { kick.set_reason_message(reason) }
+								});
+								match part {
+									Some(part) => match part.send_with_result(&mut con) {
+										Ok(handle) => {
+											pending_messages.insert(handle, "Kick from channel".into());
+										}
+										Err(e) => emit(&Event::Error { message: e.to_string() }),
+									},
+									None => {
+										emit(&Event::Error { message: format!("Unknown client id: {id}") })
+									}
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid client id: {id_str}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("kickserver ") {
+						let mut parts = rest.splitn(2, ' ');
+						let id_str = parts.next().unwrap_or("");
+						let reason = parts.next().unwrap_or("").trim();
+						match id_str.trim().parse::<u16>() {
+							Ok(id) => {
+								let client_id = ClientId(id);
+								let part = con.get_state()?.clients.get(&client_id).map(|c| {
+									let kick = c.kick(Reason::KickServer);
+									if reason.is_empty() { kick } else { kick.set_reason_message(reason) }
+								});
+								match part {
+									Some(part) => match part.send_with_result(&mut con) {
+										Ok(handle) => {
+											pending_messages.insert(handle, "Kick from server".into());
+										}
+										Err(e) => emit(&Event::Error { message: e.to_string() }),
+									},
+									None => {
+										emit(&Event::Error { message: format!("Unknown client id: {id}") })
+									}
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid client id: {id_str}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("banclient ") {
+						// Format: "banclient <id> <seconds> <reason...>" - seconds=0 means permanent.
+						// No typed builder exists for banclient, so this is built as a raw command
+						// (same approach used for the connection-info requests above).
+						let mut parts = rest.splitn(3, ' ');
+						let id_str = parts.next().unwrap_or("");
+						let seconds_str = parts.next().unwrap_or("0");
+						let reason = parts.next().unwrap_or("").trim();
+						match id_str.trim().parse::<u16>() {
+							Ok(id) => {
+								let seconds: u64 = seconds_str.trim().parse().unwrap_or(0);
+								let mut packet =
+									OutCommand::new(Direction::C2S, Flags::empty(), PacketType::Command, "banclient");
+								packet.write_arg("clid", &id);
+								if seconds > 0 {
+									packet.write_arg("time", &seconds);
+								}
+								if !reason.is_empty() {
+									packet.write_arg("banreason", &reason);
+								}
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Ban client".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid client id: {id_str}") }),
 						}
 					} else if l == "serverconninfo" {
 						let part = con.get_state()?.server.connection_info();

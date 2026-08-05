@@ -1632,6 +1632,27 @@
   background: linear-gradient(var(--button-bg-hover-1), var(--button-bg-hover-2));
 }
 
+.ts-ban-compose {
+  flex-wrap: wrap;
+  max-width: 380px;
+}
+
+.ts-ban-duration-field {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ts-ban-duration-field select {
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.2rem 0.4rem;
+}
+
 .ts-poke-notice {
   display: flex;
   align-items: center;

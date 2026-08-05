@@ -2387,6 +2387,15 @@ function AppInner() {
   const [pokeTarget, setPokeTarget] = useState<{ id: number; name: string } | null>(null);
   const [pokeMessage, setPokeMessage] = useState("");
   const pokeBackdrop = useBackdropDismiss(() => setPokeTarget(null));
+  const [kickTarget, setKickTarget] = useState<{ id: number; name: string; scope: "channel" | "server" } | null>(
+    null
+  );
+  const [kickReason, setKickReason] = useState("");
+  const kickBackdrop = useBackdropDismiss(() => setKickTarget(null));
+  const [banTarget, setBanTarget] = useState<{ id: number; name: string } | null>(null);
+  const [banReason, setBanReason] = useState("");
+  const [banSeconds, setBanSeconds] = useState("0");
+  const banBackdrop = useBackdropDismiss(() => setBanTarget(null));
   const [demoForceMobile, setDemoForceMobile] = useState(false);
   const [clientContextMenu, setClientContextMenu] = useState<{
     x: number;
@@ -3517,6 +3526,36 @@ function AppInner() {
     setPokeMessage("");
   };
 
+  const handleConfirmKick = () => {
+    if (!kickTarget) return;
+    socketRef.current?.send(
+      JSON.stringify({
+        type: kickTarget.scope === "channel" ? "kickFromChannel" : "kickFromServer",
+        clientId: kickTarget.id,
+        reason: kickReason,
+      })
+    );
+    logClient("info", "Moderation", `Kicked ${kickTarget.name} from ${kickTarget.scope}`);
+    setKickTarget(null);
+    setKickReason("");
+  };
+
+  const handleConfirmBan = () => {
+    if (!banTarget) return;
+    socketRef.current?.send(
+      JSON.stringify({
+        type: "banClient",
+        clientId: banTarget.id,
+        seconds: Number(banSeconds) || 0,
+        reason: banReason,
+      })
+    );
+    logClient("info", "Moderation", `Banned ${banTarget.name}`);
+    setBanTarget(null);
+    setBanReason("");
+    setBanSeconds("0");
+  };
+
   const handleClosePrivateChat = (clientId: number) => {
     setPmThreads((prev) => {
       const next = { ...prev };
@@ -4284,6 +4323,58 @@ function AppInner() {
         </div>
       )}
 
+      {kickTarget && (
+        <div className="ts-poke-compose-backdrop" {...kickBackdrop}>
+          <div className="ts-poke-compose" onClick={(e) => e.stopPropagation()}>
+            <span>
+              👢 {t("kick.title")} <strong>{kickTarget.name}</strong>
+            </span>
+            <input
+              autoFocus
+              value={kickReason}
+              onChange={(e) => setKickReason(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleConfirmKick();
+                if (e.key === "Escape") setKickTarget(null);
+              }}
+              placeholder={t("kick.reasonPlaceholder")}
+            />
+            <button onClick={handleConfirmKick}>{t("kick.confirm")}</button>
+            <button onClick={() => setKickTarget(null)}>{t("kick.cancel")}</button>
+          </div>
+        </div>
+      )}
+
+      {banTarget && (
+        <div className="ts-poke-compose-backdrop" {...banBackdrop}>
+          <div className="ts-poke-compose ts-ban-compose" onClick={(e) => e.stopPropagation()}>
+            <span>
+              🚫 {t("ban.title")} <strong>{banTarget.name}</strong>
+            </span>
+            <label className="ts-ban-duration-field">
+              {t("ban.duration")}
+              <select value={banSeconds} onChange={(e) => setBanSeconds(e.target.value)}>
+                <option value="0">{t("ban.durationPermanent")}</option>
+                <option value="3600">{t("ban.duration1h")}</option>
+                <option value="86400">{t("ban.duration1d")}</option>
+                <option value="604800">{t("ban.duration1w")}</option>
+              </select>
+            </label>
+            <input
+              value={banReason}
+              onChange={(e) => setBanReason(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleConfirmBan();
+                if (e.key === "Escape") setBanTarget(null);
+              }}
+              placeholder={t("ban.reasonPlaceholder")}
+            />
+            <button onClick={handleConfirmBan}>{t("ban.confirm")}</button>
+            <button onClick={() => setBanTarget(null)}>{t("ban.cancel")}</button>
+          </div>
+        </div>
+      )}
+
       {pokes.map((poke) => (
         <div key={poke.id} className="ts-poke-notice">
           <span>
@@ -4372,11 +4463,45 @@ function AppInner() {
           {!clientContextMenu.isSelf && (
             <>
               <div className="ts-menu-separator" />
-              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  setKickTarget({
+                    id: clientContextMenu.clientId,
+                    name: clientContextMenu.clientName,
+                    scope: "channel",
+                  });
+                  setKickReason("");
+                  setClientContextMenu(null);
+                }}
+              >
+                <span className="ts-menu-item-icon">🚪</span>
+                <span className="ts-menu-item-label">{t("clientContext.kickChannel")}</span>
+              </button>
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  setKickTarget({
+                    id: clientContextMenu.clientId,
+                    name: clientContextMenu.clientName,
+                    scope: "server",
+                  });
+                  setKickReason("");
+                  setClientContextMenu(null);
+                }}
+              >
                 <span className="ts-menu-item-icon">👢</span>
                 <span className="ts-menu-item-label">{t("clientContext.kick")}</span>
               </button>
-              <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  setBanTarget({ id: clientContextMenu.clientId, name: clientContextMenu.clientName });
+                  setBanReason("");
+                  setBanSeconds("0");
+                  setClientContextMenu(null);
+                }}
+              >
                 <span className="ts-menu-item-icon">🚫</span>
                 <span className="ts-menu-item-label">{t("clientContext.ban")}</span>
               </button>

@@ -3041,6 +3041,8 @@ function AppInner() {
     isSelf: boolean;
   } | null>(null);
   const clientContextMenuRef = useRef<HTMLDivElement>(null);
+  const [serverContextMenu, setServerContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const serverContextMenuRef = useRef<HTMLDivElement>(null);
   const [whisperChannelIds, setWhisperChannelIds] = useState<Set<number>>(new Set());
   const [whisperClientIds, setWhisperClientIds] = useState<Set<number>>(new Set());
   const [whisperMenuOpen, setWhisperMenuOpen] = useState(false);
@@ -3756,6 +3758,22 @@ function AppInner() {
   }, [clientContextMenu]);
 
   useEffect(() => {
+    if (!serverContextMenu) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (!serverContextMenuRef.current?.contains(e.target as Node)) setServerContextMenu(null);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setServerContextMenu(null);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [serverContextMenu]);
+
+  useEffect(() => {
     if (!connected) {
       setWhisperChannelIds(new Set());
       setWhisperClientIds(new Set());
@@ -4246,6 +4264,13 @@ function AppInner() {
     const x = Math.min(e.clientX, window.innerWidth - 220);
     const y = Math.min(e.clientY, window.innerHeight - 300);
     setClientContextMenu({ x, y, clientId, clientName, isSelf });
+  };
+
+  const handleServerContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const x = Math.min(e.clientX, window.innerWidth - 220);
+    const y = Math.min(e.clientY, window.innerHeight - 300);
+    setServerContextMenu({ x, y });
   };
 
   const handleSendPoke = () => {
@@ -5325,6 +5350,98 @@ function AppInner() {
         </div>
       )}
 
+      {serverContextMenu && (
+        <div
+          ref={serverContextMenuRef}
+          className="ts-context-menu"
+          style={{ top: serverContextMenu.y, left: serverContextMenu.x }}
+        >
+          <div className="ts-context-menu-title">{serverName || host}</div>
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              handleShowServerConnectionInfo();
+              setServerContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">🔌</span>
+            <span className="ts-menu-item-label">{t("serverContext.connectionInfo")}</span>
+          </button>
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              setServerEditOpen(true);
+              setServerContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">✏️</span>
+            <span className="ts-menu-item-label">{t("serverEdit.title")}</span>
+          </button>
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              void navigator.clipboard?.writeText(host);
+              setServerContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">📋</span>
+            <span className="ts-menu-item-label">{t("serverContext.copyAddress")}</span>
+          </button>
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              openAddFavorite();
+              setServerContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">⭐</span>
+            <span className="ts-menu-item-label">{t("serverContext.addFavorite")}</span>
+          </button>
+          <div className="ts-menu-separator" />
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              handleShowServerProtocolLog();
+              setServerContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">📜</span>
+            <span className="ts-menu-item-label">{t("menu.extras.serverLog")}</span>
+          </button>
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              handleShowBanList();
+              setServerContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">🚫</span>
+            <span className="ts-menu-item-label">{t("menu.extras.banList")}</span>
+          </button>
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              handleShowComplainList();
+              setServerContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">⚠️</span>
+            <span className="ts-menu-item-label">{t("menu.extras.complaintList")}</span>
+          </button>
+          <div className="ts-menu-separator" />
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              handleDisconnect();
+              setServerContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">❌</span>
+            <span className="ts-menu-item-label">{t("serverContext.disconnect")}</span>
+          </button>
+        </div>
+      )}
+
       <div className="ts-body">
         <div className="ts-upper" style={{ height: upperHeight }}>
           <div className="ts-tree-panel" style={{ width: treeWidth }}>
@@ -5333,6 +5450,7 @@ function AppInner() {
                 <div
                   className={`ts-row ts-server-row${selected?.type === "server" ? " ts-row-selected" : ""}`}
                   onClick={() => handleSelectItem({ type: "server" })}
+                  onContextMenu={handleServerContextMenu}
                 >
                   <ServerIcon />
                   <span>{serverName || host}</span>

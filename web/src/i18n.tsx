@@ -402,6 +402,11 @@ const translations: Record<Lang, Record<string, string>> = {
     "clientContext.ban": "Bannen",
     "clientContext.notSupported": "Im Web-Client noch nicht unterstützt",
 
+    "serverContext.connectionInfo": "Serververbindungsinformationen",
+    "serverContext.copyAddress": "Serveradresse kopieren",
+    "serverContext.addFavorite": "Zu Favoriten hinzufügen",
+    "serverContext.disconnect": "Verbindung trennen",
+
     "connectError.dismiss": "Schließen",
     "dialog.close": "Schließen",
 
@@ -827,6 +832,11 @@ const translations: Record<Lang, Record<string, string>> = {
     "clientContext.kick": "Kick from server",
     "clientContext.ban": "Ban",
     "clientContext.notSupported": "Not yet supported in the web client",
+
+    "serverContext.connectionInfo": "Server Connection Info",
+    "serverContext.copyAddress": "Copy server address",
+    "serverContext.addFavorite": "Add to favorites",
+    "serverContext.disconnect": "Disconnect",
 
     "connectError.dismiss": "Dismiss",
     "dialog.close": "Close",

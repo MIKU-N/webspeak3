@@ -1087,6 +1087,40 @@
   gap: 0.5rem;
 }
 
+.ts-offline-messages-dialog {
+  width: 720px;
+}
+
+.ts-offline-message-compose,
+.ts-offline-message-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ts-offline-message-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.ts-offline-message-detail-uid {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ts-offline-message-detail-body {
+  white-space: pre-wrap;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 0.5rem;
+}
+
+.ts-offline-message-compose textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
 .ts-server-protocol-log-line {
   padding: 0.15rem 0.4rem;
   border-bottom: 1px solid var(--border-soft);

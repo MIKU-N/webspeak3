@@ -275,6 +275,42 @@ export class DemoSocket {
       case "deleteComplaint":
       case "deleteAllComplaintsFor":
         break;
+      case "getOfflineMessageList": {
+        this.after(400, () =>
+          this.emit({
+            type: "offlineMessageList",
+            entries: [
+              {
+                messageId: 1,
+                clientUid: "demo-uid-sam",
+                subject: "Missed you online",
+                timestamp: "2026-08-03 20:11:44",
+                isRead: false,
+              },
+            ],
+          })
+        );
+        break;
+      }
+      case "getOfflineMessage": {
+        this.after(300, () =>
+          this.emit({
+            type: "offlineMessage",
+            messageId: msg.messageId,
+            clientUid: "demo-uid-sam",
+            subject: "Missed you online",
+            message: "Hey, we were on last night in the Gaming channel - join us next time!",
+            timestamp: "2026-08-03 20:11:44",
+          })
+        );
+        break;
+      }
+      case "sendOfflineMessage":
+      case "deleteOfflineMessage":
+      case "markOfflineMessageRead":
+        // No observable effect - the frontend already optimistically updates
+        // its own state for delete/read, and there's no NPC to reply to a send.
+        break;
       // "disconnect" is intentionally unhandled here: handleDisconnect() in
       // App.tsx always calls socket.close() right after sending it, and
       // close() already emits the "disconnected" event below.

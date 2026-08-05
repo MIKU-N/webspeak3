@@ -244,6 +244,18 @@ enum Event {
 	/// Reply to a "complainlist" request.
 	#[serde(rename = "complainList")]
 	ComplainList { entries: Vec<ComplainListEntry> },
+	/// Reply to a "messagelist" request.
+	#[serde(rename = "offlineMessageList")]
+	OfflineMessageList { entries: Vec<OfflineMessageListEntry> },
+	/// Reply to a "messageget" request.
+	#[serde(rename = "offlineMessage")]
+	OfflineMessage {
+		message_id: u32,
+		client_uid: String,
+		subject: String,
+		message: String,
+		timestamp: String,
+	},
 }
 
 #[derive(Serialize)]
@@ -270,6 +282,16 @@ struct ComplainListEntry {
 	from_name: String,
 	message: String,
 	timestamp: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OfflineMessageListEntry {
+	message_id: u32,
+	client_uid: String,
+	subject: String,
+	timestamp: String,
+	is_read: bool,
 }
 
 fn emit(event: &Event) {
@@ -587,6 +609,8 @@ async fn run(args: Args) -> Result<()> {
 	let mut pending_server_log = false;
 	let mut pending_ban_list = false;
 	let mut pending_complain_list = false;
+	let mut pending_offline_message_list = false;
+	let mut pending_offline_message_get = false;
 
 	enum LoopOutcome {
 		StdinLine(std::io::Result<Option<String>>),
@@ -1014,6 +1038,95 @@ async fn run(args: Args) -> Result<()> {
 							}
 							Err(_) => emit(&Event::Error { message: format!("Invalid client db id: {rest}") }),
 						}
+					} else if l == "messagelist" {
+						let packet =
+							OutCommand::new(Direction::C2S, Flags::empty(), PacketType::Command, "messagelist");
+						match packet.send_with_result(&mut con) {
+							Ok(handle) => {
+								pending_offline_message_list = true;
+								pending_messages.insert(handle, "Offline message list".into());
+							}
+							Err(e) => emit(&Event::Error { message: e.to_string() }),
+						}
+					} else if let Some(rest) = l.strip_prefix("messageget ") {
+						match rest.trim().parse::<u32>() {
+							Ok(msgid) => {
+								let mut packet = OutCommand::new(
+									Direction::C2S,
+									Flags::empty(),
+									PacketType::Command,
+									"messageget",
+								);
+								packet.write_arg("msgid", &msgid);
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_offline_message_get = true;
+										pending_messages.insert(handle, "Offline message".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid message id: {rest}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("messageadd ") {
+						let mut parts = rest.splitn(3, '\t');
+						let cluid = parts.next().unwrap_or("");
+						let subject = parts.next().unwrap_or("");
+						let message = parts.next().unwrap_or("");
+						let mut packet =
+							OutCommand::new(Direction::C2S, Flags::empty(), PacketType::Command, "messageadd");
+						packet.write_arg("cluid", &cluid);
+						packet.write_arg("subject", &subject);
+						packet.write_arg("message", &message);
+						match packet.send_with_result(&mut con) {
+							Ok(handle) => {
+								pending_messages.insert(handle, "Send offline message".into());
+							}
+							Err(e) => emit(&Event::Error { message: e.to_string() }),
+						}
+					} else if let Some(rest) = l.strip_prefix("messagedel ") {
+						match rest.trim().parse::<u32>() {
+							Ok(msgid) => {
+								let mut packet = OutCommand::new(
+									Direction::C2S,
+									Flags::empty(),
+									PacketType::Command,
+									"messagedel",
+								);
+								packet.write_arg("msgid", &msgid);
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Delete offline message".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid message id: {rest}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("messageupdateflag ") {
+						let mut parts = rest.trim().splitn(2, ' ');
+						let msgid_str = parts.next().unwrap_or("");
+						let flag_str = parts.next().unwrap_or("");
+						match msgid_str.parse::<u32>() {
+							Ok(msgid) => {
+								let flag = flag_str.trim() == "1";
+								let mut packet = OutCommand::new(
+									Direction::C2S,
+									Flags::empty(),
+									PacketType::Command,
+									"messageupdateflag",
+								);
+								packet.write_arg("msgid", &msgid);
+								packet.write_arg("flag", &flag);
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Mark offline message read".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid message id: {rest}") }),
+						}
 					} else if let Some(b64) = l.strip_prefix("audio ") {
 						match base64::engine::general_purpose::STANDARD.decode(b64.trim()) {
 							Ok(bytes) => {
@@ -1231,6 +1344,36 @@ async fn run(args: Args) -> Result<()> {
 								.collect();
 							emit(&Event::ComplainList { entries });
 							pending_complain_list = false;
+						}
+					}
+					if pending_offline_message_list {
+						if let InMessage::OfflineMessageList(list) = &msg {
+							let entries: Vec<OfflineMessageListEntry> = list
+								.iter()
+								.map(|part| OfflineMessageListEntry {
+									message_id: part.message_id,
+									client_uid: part.client_uid.to_string(),
+									subject: part.subject.clone(),
+									timestamp: part.timestamp.to_string(),
+									is_read: part.is_read,
+								})
+								.collect();
+							emit(&Event::OfflineMessageList { entries });
+							pending_offline_message_list = false;
+						}
+					}
+					if pending_offline_message_get {
+						if let InMessage::OfflineMessage(list) = &msg {
+							if let Some(part) = list.iter().next() {
+								emit(&Event::OfflineMessage {
+									message_id: part.message_id,
+									client_uid: part.client_uid.to_string(),
+									subject: part.subject.clone(),
+									message: part.message.clone(),
+									timestamp: part.timestamp.to_string(),
+								});
+							}
+							pending_offline_message_get = false;
 						}
 					}
 				}

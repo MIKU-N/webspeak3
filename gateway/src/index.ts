@@ -174,6 +174,26 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.deleteAllComplaintsFor(msg.targetClientDbId);
         break;
       }
+      case "getOfflineMessageList": {
+        await connection?.getOfflineMessageList();
+        break;
+      }
+      case "getOfflineMessage": {
+        await connection?.getOfflineMessage(msg.messageId);
+        break;
+      }
+      case "sendOfflineMessage": {
+        await connection?.sendOfflineMessage(msg.clientUid, msg.subject, msg.message);
+        break;
+      }
+      case "deleteOfflineMessage": {
+        await connection?.deleteOfflineMessage(msg.messageId);
+        break;
+      }
+      case "markOfflineMessageRead": {
+        await connection?.markOfflineMessageRead(msg.messageId);
+        break;
+      }
       case "disconnect": {
         await connection?.disconnect(msg.message ?? "");
         break;

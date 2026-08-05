@@ -57,6 +57,14 @@ export interface ComplainListEntry {
   timestamp: string;
 }
 
+export interface OfflineMessageListEntry {
+  messageId: number;
+  clientUid: string;
+  subject: string;
+  timestamp: string;
+  isRead: boolean;
+}
+
 export type ServerLogEntry =
   | { kind: "clientJoin"; client: string; channel: string }
   | { kind: "clientLeave"; client: string }
@@ -115,7 +123,16 @@ export type Ts3ConnectionEvent =
     }
   | { type: "serverProtocolLog"; lines: string[] }
   | { type: "banList"; entries: BanListEntry[] }
-  | { type: "complainList"; entries: ComplainListEntry[] };
+  | { type: "complainList"; entries: ComplainListEntry[] }
+  | { type: "offlineMessageList"; entries: OfflineMessageListEntry[] }
+  | {
+      type: "offlineMessage";
+      messageId: number;
+      clientUid: string;
+      subject: string;
+      message: string;
+      timestamp: string;
+    };
 
 export interface Ts3ConnectOptions {
   host: string;
@@ -257,6 +274,24 @@ export class Ts3Connection {
                 message: string;
                 timestamp: string;
               }[];
+            }
+          | {
+              type: "offlineMessageList";
+              entries: {
+                message_id: number;
+                client_uid: string;
+                subject: string;
+                timestamp: string;
+                is_read: boolean;
+              }[];
+            }
+          | {
+              type: "offlineMessage";
+              message_id: number;
+              client_uid: string;
+              subject: string;
+              message: string;
+              timestamp: string;
             };
 
         if (event.type === "connected") {
@@ -359,6 +394,26 @@ export class Ts3Connection {
               timestamp: e.timestamp,
             })),
           });
+        } else if (event.type === "offlineMessageList") {
+          this.emit({
+            type: "offlineMessageList",
+            entries: event.entries.map((e) => ({
+              messageId: e.message_id,
+              clientUid: e.client_uid,
+              subject: e.subject,
+              timestamp: e.timestamp,
+              isRead: e.is_read,
+            })),
+          });
+        } else if (event.type === "offlineMessage") {
+          this.emit({
+            type: "offlineMessage",
+            messageId: event.message_id,
+            clientUid: event.client_uid,
+            subject: event.subject,
+            message: event.message,
+            timestamp: event.timestamp,
+          });
         } else {
           this.emit(event);
         }
@@ -457,6 +512,27 @@ export class Ts3Connection {
 
   async deleteAllComplaintsFor(targetClientDbId: number): Promise<void> {
     this.child?.stdin.write(`complaindelall ${targetClientDbId}\n`);
+  }
+
+  async getOfflineMessageList(): Promise<void> {
+    this.child?.stdin.write(`messagelist\n`);
+  }
+
+  async getOfflineMessage(messageId: number): Promise<void> {
+    this.child?.stdin.write(`messageget ${messageId}\n`);
+  }
+
+  async sendOfflineMessage(clientUid: string, subject: string, message: string): Promise<void> {
+    const sanitize = (s: string) => s.replace(/[\r\n\t]+/g, " ").trim();
+    this.child?.stdin.write(`messageadd ${sanitize(clientUid)}\t${sanitize(subject)}\t${sanitize(message)}\n`);
+  }
+
+  async deleteOfflineMessage(messageId: number): Promise<void> {
+    this.child?.stdin.write(`messagedel ${messageId}\n`);
+  }
+
+  async markOfflineMessageRead(messageId: number): Promise<void> {
+    this.child?.stdin.write(`messageupdateflag ${messageId} 1\n`);
   }
 
   async sendChatMessage(message: string): Promise<void> {

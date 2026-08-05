@@ -573,6 +573,12 @@ export class Ts3Connection {
     this.child?.stdin.write(`delservergroup ${serverGroupId} ${clientDbId}\n`);
   }
 
+  async serverQueryLogin(username: string, password: string): Promise<void> {
+    const u = Buffer.from(username, "utf8").toString("base64");
+    const p = Buffer.from(password, "utf8").toString("base64");
+    this.child?.stdin.write(`serverquerylogin ${u} ${p}\n`);
+  }
+
   async sendChatMessage(message: string): Promise<void> {
     const sanitized = message.replace(/[\r\n]+/g, " ").trim();
     if (sanitized) this.child?.stdin.write(`chat ${sanitized}\n`);

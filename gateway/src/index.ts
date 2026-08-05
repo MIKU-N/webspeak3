@@ -214,6 +214,10 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.removeServerGroup(msg.serverGroupId, msg.clientDbId);
         break;
       }
+      case "serverQueryLogin": {
+        await connection?.serverQueryLogin(msg.username, msg.password);
+        break;
+      }
       case "disconnect": {
         await connection?.disconnect(msg.message ?? "");
         break;

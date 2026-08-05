@@ -400,6 +400,10 @@ const translations: Record<Lang, Record<string, string>> = {
     "groupAssign.empty": "Keine Gruppen vorhanden.",
     "groupAssign.clickToRemove": "Klicken zum Entfernen",
 
+    "serverQueryLogin.username": "Benutzername",
+    "serverQueryLogin.password": "Passwort",
+    "serverQueryLogin.login": "Anmelden",
+
     "clientContext.privateChat": "Privater Chat",
     "clientContext.poke": "Anstupsen",
     "clientContext.copyName": "Namen kopieren",
@@ -841,6 +845,10 @@ const translations: Record<Lang, Record<string, string>> = {
     "groupAssign.serverTitle": "Assign Server Group",
     "groupAssign.empty": "No groups found.",
     "groupAssign.clickToRemove": "Click to remove",
+
+    "serverQueryLogin.username": "Username",
+    "serverQueryLogin.password": "Password",
+    "serverQueryLogin.login": "Login",
 
     "clientContext.privateChat": "Private chat",
     "clientContext.poke": "Poke",

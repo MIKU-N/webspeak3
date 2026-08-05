@@ -1729,6 +1729,15 @@
   padding: 0.3rem 0.7rem;
 }
 
+.ts-serverquery-login-compose {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.ts-serverquery-login-compose input {
+  min-width: 260px;
+}
+
 .ts-poke-compose button:hover {
   background: linear-gradient(var(--button-bg-hover-1), var(--button-bg-hover-2));
 }

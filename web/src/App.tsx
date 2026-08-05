@@ -3198,6 +3198,10 @@ function AppInner() {
   const [changeNicknameOpen, setChangeNicknameOpen] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState("");
   const nicknameBackdrop = useBackdropDismiss(() => setChangeNicknameOpen(false));
+  const [serverQueryLoginOpen, setServerQueryLoginOpen] = useState(false);
+  const [serverQueryUsername, setServerQueryUsername] = useState("");
+  const [serverQueryPassword, setServerQueryPassword] = useState("");
+  const serverQueryLoginBackdrop = useBackdropDismiss(() => setServerQueryLoginOpen(false));
   const [contacts, setContacts] = useState<Contact[]>(() => loadContacts());
   const [contactsOpen, setContactsOpen] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -4164,6 +4168,18 @@ function AppInner() {
     socketRef.current?.send(JSON.stringify({ type: "setNickname", nickname: newNickname }));
   };
 
+  const handleServerQueryLogin = () => {
+    if (!serverQueryUsername.trim() || !serverQueryPassword) return;
+    socketRef.current?.send(
+      JSON.stringify({
+        type: "serverQueryLogin",
+        username: serverQueryUsername.trim(),
+        password: serverQueryPassword,
+      })
+    );
+    setServerQueryLoginOpen(false);
+  };
+
   const handleOutputDeviceChange = async (deviceId: string) => {
     setOutputDeviceId(deviceId);
     await audioPlayerRef.current?.setOutputDevice(deviceId);
@@ -4845,7 +4861,15 @@ function AppInner() {
                 <span className="ts-menu-item-icon">📧</span>
                 <span className="ts-menu-item-label">{t("menu.extras.offlineMessages")}</span>
               </button>
-              <button className="ts-menu-item" disabled>
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  setServerQueryUsername("");
+                  setServerQueryPassword("");
+                  setServerQueryLoginOpen(true);
+                  setExtrasMenuOpen(false);
+                }}
+              >
                 <span className="ts-menu-item-icon">🔑</span>
                 <span className="ts-menu-item-label">{t("menu.extras.serverQueryLogin")}</span>
               </button>
@@ -5346,6 +5370,40 @@ function AppInner() {
               {t("favorites.ok")}
             </button>
             <button onClick={() => setChangeNicknameOpen(false)}>{t("favorites.cancel")}</button>
+          </div>
+        </div>
+      )}
+
+      {serverQueryLoginOpen && (
+        <div className="ts-poke-compose-backdrop" {...serverQueryLoginBackdrop}>
+          <div className="ts-poke-compose ts-serverquery-login-compose" onClick={(e) => e.stopPropagation()}>
+            <span>🔑 {t("menu.extras.serverQueryLogin")}</span>
+            <input
+              autoFocus
+              placeholder={t("serverQueryLogin.username")}
+              value={serverQueryUsername}
+              onChange={(e) => setServerQueryUsername(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setServerQueryLoginOpen(false);
+              }}
+            />
+            <input
+              type="password"
+              placeholder={t("serverQueryLogin.password")}
+              value={serverQueryPassword}
+              onChange={(e) => setServerQueryPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleServerQueryLogin();
+                if (e.key === "Escape") setServerQueryLoginOpen(false);
+              }}
+            />
+            <button
+              disabled={!serverQueryUsername.trim() || !serverQueryPassword}
+              onClick={handleServerQueryLogin}
+            >
+              {t("serverQueryLogin.login")}
+            </button>
+            <button onClick={() => setServerQueryLoginOpen(false)}>{t("favorites.cancel")}</button>
           </div>
         </div>
       )}

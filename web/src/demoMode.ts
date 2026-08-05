@@ -363,6 +363,10 @@ export class DemoSocket {
         this.after(200, () => this.sendChannels(this.lastNickname));
         break;
       }
+      case "serverQueryLogin":
+        // No observable effect - the demo has no real ServerQuery backend to
+        // authenticate against.
+        break;
       // "disconnect" is intentionally unhandled here: handleDisconnect() in
       // App.tsx always calls socket.close() right after sending it, and
       // close() already emits the "disconnected" event below.

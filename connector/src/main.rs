@@ -1247,6 +1247,39 @@ async fn run(args: Args) -> Result<()> {
 							}
 							_ => emit(&Event::Error { message: format!("Invalid delservergroup args: {rest}") }),
 						}
+					} else if let Some(rest) = l.strip_prefix("serverquerylogin ") {
+						let mut parts = rest.trim().splitn(2, ' ');
+						let user_b64 = parts.next().unwrap_or("");
+						let pass_b64 = parts.next().unwrap_or("");
+						let decoded = base64::engine::general_purpose::STANDARD
+							.decode(user_b64)
+							.ok()
+							.and_then(|b| String::from_utf8(b).ok())
+							.zip(
+								base64::engine::general_purpose::STANDARD
+									.decode(pass_b64)
+									.ok()
+									.and_then(|b| String::from_utf8(b).ok()),
+							);
+						match decoded {
+							Some((username, password)) => {
+								let mut packet = OutCommand::new(
+									Direction::C2S,
+									Flags::empty(),
+									PacketType::Command,
+									"login",
+								);
+								packet.write_arg("client_login_name", &username);
+								packet.write_arg("client_login_password", &password);
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "ServerQuery Login".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							None => emit(&Event::Error { message: "Invalid serverquerylogin args".into() }),
+						}
 					} else if let Some(b64) = l.strip_prefix("audio ") {
 						match base64::engine::general_purpose::STANDARD.decode(b64.trim()) {
 							Ok(bytes) => {

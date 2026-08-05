@@ -1054,6 +1054,17 @@
   white-space: nowrap;
 }
 
+.ts-server-protocol-log-dialog {
+  width: 640px;
+}
+
+.ts-server-protocol-log-line {
+  padding: 0.15rem 0.4rem;
+  border-bottom: 1px solid var(--border-soft);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 .ts-log-time {
   color: var(--text-muted);
   flex-shrink: 0;

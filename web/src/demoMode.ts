@@ -201,6 +201,20 @@ export class DemoSocket {
         );
         break;
       }
+      case "getServerLog": {
+        this.after(400, () =>
+          this.emit({
+            type: "serverProtocolLog",
+            lines: [
+              "2026-08-05 10:12:03.421128|INFO    |VirtualServerBase|1   |connect to server successful, connection accepted",
+              "2026-08-05 10:12:04.001912|INFO    |VirtualServerBase|1   |client 'Guest'(id:101) connected",
+              "2026-08-05 10:14:19.552031|INFO    |VirtualServerBase|1   |client 'Sam'(id:103) connected",
+              "2026-08-05 10:15:02.884120|INFO    |VirtualServerBase|1   |client 'Jordan'(id:104) switched channel",
+            ],
+          })
+        );
+        break;
+      }
       // "disconnect" is intentionally unhandled here: handleDisconnect() in
       // App.tsx always calls socket.close() right after sending it, and
       // close() already emits the "disconnected" event below.

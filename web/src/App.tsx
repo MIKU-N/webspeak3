@@ -1198,6 +1198,62 @@ function ClientLogDialog({ entries, onClose }: { entries: ClientLogEntry[]; onCl
   );
 }
 
+function ServerProtocolLogDialog({
+  lines,
+  onClose,
+}: {
+  lines: string[] | null;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+  // The server may silently decline (e.g. missing b_virtualserver_log_view
+  // permission) without ever replying - fall back to an error instead of
+  // spinning forever.
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    setTimedOut(false);
+    if (lines) return;
+    const id = window.setTimeout(() => setTimedOut(true), 6000);
+    return () => window.clearTimeout(id);
+  }, [lines]);
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-server-protocol-log-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("serverProtocolLog.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          {!lines ? (
+            <div className="ts-connection-info-loading">
+              {timedOut ? t("connectionInfo.unavailable") : t("connectionInfo.loading")}
+            </div>
+          ) : lines.length === 0 ? (
+            <div className="ts-connection-info-loading">{t("serverProtocolLog.empty")}</div>
+          ) : (
+            <div className="ts-log-list">
+              {lines.map((line, i) => (
+                <div key={i} className="ts-server-protocol-log-line">
+                  {line}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="ts-dialog-buttons">
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WhisperHistoryDialog({
   serverName,
   entries,
@@ -2618,6 +2674,8 @@ function AppInner() {
   const [serverBannerUrl, setServerBannerUrl] = useState("");
   const [serverWelcomeMessage, setServerWelcomeMessage] = useState("");
   const [serverEditOpen, setServerEditOpen] = useState(false);
+  const [serverProtocolLogOpen, setServerProtocolLogOpen] = useState(false);
+  const [serverProtocolLog, setServerProtocolLog] = useState<string[] | null>(null);
   const [treeWidth, setTreeWidth] = useState(260);
   const [upperHeight, setUpperHeight] = useState(340);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -3178,6 +3236,9 @@ function AppInner() {
             bandwidthSentLastSecond: data.bandwidthSentLastSecond,
             bandwidthReceivedLastSecond: data.bandwidthReceivedLastSecond,
           });
+          break;
+        case "serverProtocolLog":
+          setServerProtocolLog(data.lines);
           break;
       }
     };
@@ -3749,6 +3810,12 @@ function AppInner() {
     socketRef.current?.send(JSON.stringify({ type: "getServerConnectionInfo" }));
   };
 
+  const handleShowServerProtocolLog = () => {
+    setServerProtocolLogOpen(true);
+    setServerProtocolLog(null);
+    socketRef.current?.send(JSON.stringify({ type: "getServerLog" }));
+  };
+
   const handleClientContextMenu = (
     e: React.MouseEvent,
     clientId: number,
@@ -4111,7 +4178,6 @@ function AppInner() {
                 { icon: "🚫", label: t("menu.extras.banList"), shortcut: "Strg+Umschalt+B" },
                 { icon: "⚠️", label: t("menu.extras.complaintList"), shortcut: "Strg+Umschalt+C" },
                 { icon: "🔑", label: t("menu.extras.serverQueryLogin") },
-                { icon: "📄", label: t("menu.extras.serverLog"), shortcut: "Strg+Umschalt+L" },
               ].map((item) => (
                 <button key={item.label} className="ts-menu-item" disabled>
                   <span className="ts-menu-item-icon">{item.icon}</span>
@@ -4119,6 +4185,17 @@ function AppInner() {
                   {item.shortcut && <span className="ts-menu-item-shortcut">{item.shortcut}</span>}
                 </button>
               ))}
+              <button
+                className="ts-menu-item"
+                onClick={() => {
+                  handleShowServerProtocolLog();
+                  setExtrasMenuOpen(false);
+                }}
+              >
+                <span className="ts-menu-item-icon">📄</span>
+                <span className="ts-menu-item-label">{t("menu.extras.serverLog")}</span>
+                <span className="ts-menu-item-shortcut">Strg+Umschalt+L</span>
+              </button>
               <div className="ts-menu-separator" />
               <button
                 className="ts-menu-item"
@@ -4458,6 +4535,13 @@ function AppInner() {
             logClient("info", "Moderation", "Edited server settings");
           }}
           onClose={() => setServerEditOpen(false)}
+        />
+      )}
+
+      {serverProtocolLogOpen && (
+        <ServerProtocolLogDialog
+          lines={serverProtocolLog}
+          onClose={() => setServerProtocolLogOpen(false)}
         />
       )}
 

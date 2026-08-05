@@ -16,8 +16,8 @@ use tsclientlib::messages::c2s::{OutClientPokeRequestPart, OutSendTextMessagePar
 use tsclientlib::prelude::*;
 use tsclientlib::{
 	data, ChannelId, ClientId, CodecEncryptionMode, Connection, DisconnectOptions, HostBannerMode,
-	HostMessageMode, Identity, MaxClients, MessageHandle, MessageTarget, Reason, StreamItem,
-	TextMessageTargetMode,
+	HostMessageMode, Identity, InMessage, MaxClients, MessageHandle, MessageTarget, Reason,
+	StreamItem, TextMessageTargetMode,
 };
 use tsproto_packets::packets::{AudioData, CodecType, Direction, Flags, OutAudio, OutCommand, PacketType};
 
@@ -233,6 +233,11 @@ enum Event {
 		bandwidth_sent_last_second: u64,
 		bandwidth_received_last_second: u64,
 	},
+	/// Reply to a "serverlog" request - raw lines from the virtual server's
+	/// protocol log (distinct from `ServerLog` above, which is the synthesized
+	/// client-join/channel-edit/etc. feed for the Server tab).
+	#[serde(rename = "serverProtocolLog")]
+	ServerProtocolLog { lines: Vec<String> },
 }
 
 fn emit(event: &Event) {
@@ -544,6 +549,10 @@ async fn run(args: Args) -> Result<()> {
 	// batch, not as a direct command result) - checked and emitted below.
 	let mut pending_client_conninfo: Option<ClientId> = None;
 	let mut pending_server_conninfo = false;
+	// Set by "serverlog" while waiting for the notifyserverlog reply, which
+	// arrives as a StreamItem::MessageEvent (not a BookEvents batch, since log
+	// lines aren't part of the channel/client/server data model).
+	let mut pending_server_log = false;
 
 	enum LoopOutcome {
 		StdinLine(std::io::Result<Option<String>>),
@@ -876,6 +885,15 @@ async fn run(args: Args) -> Result<()> {
 							}
 							Err(e) => emit(&Event::Error { message: e.to_string() }),
 						}
+					} else if l == "serverlog" {
+						let part = con.get_state()?.server.log_view().set_lines(200);
+						match part.send_with_result(&mut con) {
+							Ok(handle) => {
+								pending_server_log = true;
+								pending_messages.insert(handle, "Server log".into());
+							}
+							Err(e) => emit(&Event::Error { message: e.to_string() }),
+						}
 					} else if let Some(b64) = l.strip_prefix("audio ") {
 						match base64::engine::general_purpose::STANDARD.decode(b64.trim()) {
 							Ok(bytes) => {
@@ -1046,6 +1064,15 @@ async fn run(args: Args) -> Result<()> {
 							} else {
 								emit(&Event::Error { message: format!("{label} failed: {e}") });
 							}
+						}
+					}
+				}
+				Some(Ok(StreamItem::MessageEvent(msg))) => {
+					if pending_server_log {
+						if let InMessage::ServerLog(log) = &msg {
+							let lines: Vec<String> = log.iter().map(|part| part.log.clone()).collect();
+							emit(&Event::ServerProtocolLog { lines });
+							pending_server_log = false;
 						}
 					}
 				}

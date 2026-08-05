@@ -356,6 +356,9 @@ const translations: Record<Lang, Record<string, string>> = {
     "serverEdit.save": "Speichern",
     "serverEdit.cancel": "Abbrechen",
 
+    "serverProtocolLog.title": "Server Protokoll",
+    "serverProtocolLog.empty": "Keine Protokolleinträge vorhanden.",
+
     "clientContext.privateChat": "Privater Chat",
     "clientContext.poke": "Anstupsen",
     "clientContext.copyName": "Namen kopieren",
@@ -748,6 +751,9 @@ const translations: Record<Lang, Record<string, string>> = {
     "serverEdit.unchanged": "Leave unchanged",
     "serverEdit.save": "Save",
     "serverEdit.cancel": "Cancel",
+
+    "serverProtocolLog.title": "Server Log",
+    "serverProtocolLog.empty": "No log entries.",
 
     "clientContext.privateChat": "Private chat",
     "clientContext.poke": "Poke",

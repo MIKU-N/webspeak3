@@ -90,7 +90,8 @@ export type Ts3ConnectionEvent =
       bytesReceivedTotal: number;
       bandwidthSentLastSecond: number;
       bandwidthReceivedLastSecond: number;
-    };
+    }
+  | { type: "serverProtocolLog"; lines: string[] };
 
 export interface Ts3ConnectOptions {
   host: string;
@@ -205,7 +206,8 @@ export class Ts3Connection {
               bytes_received_total: number;
               bandwidth_sent_last_second: number;
               bandwidth_received_last_second: number;
-            };
+            }
+          | { type: "serverProtocolLog"; lines: string[] };
 
         if (event.type === "connected") {
           this.emit({
@@ -349,6 +351,10 @@ export class Ts3Connection {
     codecEncryptionMode?: string;
   }): Promise<void> {
     this.child?.stdin.write(`serveredit ${JSON.stringify(payload)}\n`);
+  }
+
+  async getServerLog(): Promise<void> {
+    this.child?.stdin.write(`serverlog\n`);
   }
 
   async sendChatMessage(message: string): Promise<void> {

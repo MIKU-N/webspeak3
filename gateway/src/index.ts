@@ -146,6 +146,10 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.editServer(msg.payload ?? {});
         break;
       }
+      case "getServerLog": {
+        await connection?.getServerLog();
+        break;
+      }
       case "disconnect": {
         await connection?.disconnect(msg.message ?? "");
         break;

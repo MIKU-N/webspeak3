@@ -82,7 +82,16 @@ const DEMO_FILES: Record<string, DemoFileEntry[]> = {
   ],
   "2:/": [],
   "3:/": [],
+  // Channel 0 is TS3's special server-wide icon repository, not a real channel.
+  "0:/": [
+    { path: "/", name: "icon_100", size: 68, isFile: true, timestamp: "2024-01-01 12:00:00" },
+    { path: "/", name: "icon_200", size: 68, isFile: true, timestamp: "2024-01-01 12:00:00" },
+  ],
 };
+
+// A tiny 1x1 transparent PNG, reused as the fake image data for every demo icon.
+const DEMO_ICON_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
 function demoFileKey(channelId: number, path: string): string {
   return `${channelId}:${path}`;
@@ -452,14 +461,11 @@ export class DemoSocket {
       case "downloadFile": {
         const full = msg.path as string;
         const name = full.slice(full.lastIndexOf("/") + 1);
-        this.after(400, () =>
-          this.emit({
-            type: "fileDownloadData",
-            cid: msg.channelId,
-            path: full,
-            data: btoa(`This is a demo file. There is no real content behind "${name}" in WebSpeak3's demo mode.`),
-          })
-        );
+        const data =
+          msg.channelId === 0
+            ? DEMO_ICON_PNG_BASE64
+            : btoa(`This is a demo file. There is no real content behind "${name}" in WebSpeak3's demo mode.`);
+        this.after(400, () => this.emit({ type: "fileDownloadData", cid: msg.channelId, path: full, data }));
         break;
       }
       case "uploadFile": {

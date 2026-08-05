@@ -1198,6 +1198,42 @@
   text-decoration: underline;
 }
 
+.ts-server-icons-dialog {
+  width: 560px;
+}
+
+.ts-server-icons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 0.6rem;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+
+.ts-server-icons-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.ts-server-icons-tile img,
+.ts-server-icons-tile-loading {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.ts-server-icons-tile-loading {
+  background: var(--border-soft);
+  border-radius: 2px;
+}
+
 .ts-server-protocol-log-line {
   padding: 0.15rem 0.4rem;
   border-bottom: 1px solid var(--border-soft);

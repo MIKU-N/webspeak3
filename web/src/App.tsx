@@ -1847,6 +1847,155 @@ function FileBrowserDialog({
   );
 }
 
+/** Sniffs an image MIME type from decoded bytes so uploaded icons (which can
+ *  be PNG/GIF/JPEG/BMP) render correctly as data URIs regardless of format. */
+function sniffImageMime(binary: string): string {
+  if (binary.startsWith("\x89PNG")) return "image/png";
+  if (binary.startsWith("GIF87a") || binary.startsWith("GIF89a")) return "image/gif";
+  if (binary.charCodeAt(0) === 0xff && binary.charCodeAt(1) === 0xd8) return "image/jpeg";
+  if (binary.startsWith("BM")) return "image/bmp";
+  return "image/png";
+}
+
+function iconDataUrl(base64: string): string {
+  return `data:${sniffImageMime(atob(base64))};base64,${base64}`;
+}
+
+/** The icon repository lives under TS3's special "channel 0" - not a real,
+ *  selectable channel, just the server-wide filebase icons are stored in.
+ *  Icon files are always named "icon_<id>", where <id> is what a server/
+ *  channel/group's icon field references. Reuses the same ftlist/download/
+ *  upload/delete plumbing as the per-channel file browser. */
+function ServerIconsDialog({
+  entries,
+  images,
+  onUpload,
+  onDelete,
+  onClose,
+}: {
+  entries: FileListEntry[] | null;
+  images: Record<string, string>;
+  onUpload: (iconId: number, file: File) => void;
+  onDelete: (entry: FileListEntry) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+  const [timedOut, setTimedOut] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [newIconId, setNewIconId] = useState("");
+
+  useEffect(() => {
+    setTimedOut(false);
+    if (entries) return;
+    const id = window.setTimeout(() => setTimedOut(true), 6000);
+    return () => window.clearTimeout(id);
+  }, [entries]);
+
+  const nextFreeId = () => {
+    const ids = (entries ?? [])
+      .map((e) => parseInt(e.name.replace("icon_", ""), 10))
+      .filter((n) => !Number.isNaN(n));
+    return (ids.length ? Math.max(...ids) : 99) + 1;
+  };
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-server-icons-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>{t("serverIcons.title")}</span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          <div className="ts-file-browser-toolbar">
+            <button
+              onClick={() => {
+                setNewIconId(String(nextFreeId()));
+                fileInputRef.current?.click();
+              }}
+              title={t("serverIcons.upload")}
+            >
+              ⬆️ {t("serverIcons.upload")}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) setPendingFile(file);
+              }}
+            />
+          </div>
+          {pendingFile && (
+            <form
+              className="ts-dialog-row"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const id = parseInt(newIconId, 10);
+                if (!Number.isNaN(id) && pendingFile) onUpload(id, pendingFile);
+                setPendingFile(null);
+              }}
+            >
+              <label className="ts-dialog-field">
+                {t("serverIcons.iconId")}
+                <input
+                  type="number"
+                  autoFocus
+                  value={newIconId}
+                  onChange={(e) => setNewIconId(e.target.value)}
+                />
+              </label>
+              <button type="submit">{t("dialog.ok")}</button>
+              <button type="button" onClick={() => setPendingFile(null)}>
+                {t("dialog.cancel")}
+              </button>
+            </form>
+          )}
+          {!entries ? (
+            <div className="ts-connection-info-loading">
+              {timedOut ? t("connectionInfo.unavailable") : t("connectionInfo.loading")}
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="ts-connection-info-loading">{t("serverIcons.empty")}</div>
+          ) : (
+            <div className="ts-server-icons-grid">
+              {entries.map((entry) => {
+                const path = `/${entry.name}`;
+                const base64 = images[path];
+                return (
+                  <div className="ts-server-icons-tile" key={entry.name}>
+                    {base64 ? (
+                      <img src={iconDataUrl(base64)} alt={entry.name} />
+                    ) : (
+                      <div className="ts-server-icons-tile-loading" />
+                    )}
+                    <span>{entry.name.replace("icon_", "#")}</span>
+                    <button onClick={() => onDelete(entry)} title={t("fileBrowser.delete")}>
+                      🗑
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="ts-dialog-buttons">
+          <div />
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PermissionOverviewDialog({
   entries,
   onClose,
@@ -3428,6 +3577,9 @@ function AppInner() {
   );
   const [fileBrowserPath, setFileBrowserPath] = useState("/");
   const [fileBrowserEntries, setFileBrowserEntries] = useState<FileListEntry[] | null>(null);
+  const [serverIconsOpen, setServerIconsOpen] = useState(false);
+  const [serverIconEntries, setServerIconEntries] = useState<FileListEntry[] | null>(null);
+  const [serverIconImages, setServerIconImages] = useState<Record<string, string>>({});
   const [treeWidth, setTreeWidth] = useState(260);
   const [upperHeight, setUpperHeight] = useState(340);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -4035,15 +4187,31 @@ function AppInner() {
           setPermissionOverview(data.entries);
           break;
         case "fileList":
-          setFileBrowserEntries(data.entries);
+          // Channel 0 isn't a real, selectable channel - it's TS3's special
+          // server-wide icon repository, so a listing for it always means the
+          // server icons window, never the per-channel file browser.
+          if (data.cid === 0) {
+            setServerIconEntries(
+              data.entries.filter((e: FileListEntry) => e.isFile && /^icon_\d+$/.test(e.name))
+            );
+          } else {
+            setFileBrowserEntries(data.entries);
+          }
           break;
         case "fileDownloadData": {
-          const filename = data.path.split("/").filter(Boolean).pop() ?? "download";
-          triggerBrowserDownload(filename, data.data);
+          if (data.cid === 0) {
+            // Icon preview fetch, not a user-initiated download - stash the
+            // bytes for the server icons grid instead of saving a file.
+            setServerIconImages((prev) => ({ ...prev, [data.path]: data.data }));
+          } else {
+            const filename = data.path.split("/").filter(Boolean).pop() ?? "download";
+            triggerBrowserDownload(filename, data.data);
+          }
           break;
         }
         case "fileUploadDone":
-          handleFileBrowserRefresh();
+          if (data.cid === 0) handleServerIconsRefresh();
+          else handleFileBrowserRefresh();
           break;
       }
     };
@@ -4238,6 +4406,19 @@ function AppInner() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [channelContextMenu]);
+
+  // Icon files aren't previewable from the listing alone - fetch each one's
+  // bytes individually once, then cache them in serverIconImages so re-runs
+  // (triggered by that same state update) become no-ops for already-fetched icons.
+  useEffect(() => {
+    if (!serverIconsOpen || !serverIconEntries) return;
+    for (const entry of serverIconEntries) {
+      const path = `/${entry.name}`;
+      if (!(path in serverIconImages)) {
+        socketRef.current?.send(JSON.stringify({ type: "downloadFile", channelId: 0, path }));
+      }
+    }
+  }, [serverIconsOpen, serverIconEntries, serverIconImages]);
 
   useEffect(() => {
     if (!connected) {
@@ -4909,6 +5090,36 @@ function AppInner() {
       );
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleShowServerIcons = () => {
+    setServerIconsOpen(true);
+    setServerIconEntries(null);
+    setServerIconImages({});
+    socketRef.current?.send(JSON.stringify({ type: "getFileList", channelId: 0, path: "/" }));
+  };
+
+  const handleServerIconsRefresh = () => {
+    setServerIconImages({});
+    socketRef.current?.send(JSON.stringify({ type: "getFileList", channelId: 0, path: "/" }));
+  };
+
+  const handleServerIconUpload = (iconId: number, file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.slice(result.indexOf(",") + 1);
+      socketRef.current?.send(
+        JSON.stringify({ type: "uploadFile", channelId: 0, path: `/icon_${iconId}`, dataBase64: base64 })
+      );
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleServerIconDelete = (entry: FileListEntry) => {
+    if (!window.confirm(t("fileBrowser.deleteConfirm"))) return;
+    socketRef.current?.send(JSON.stringify({ type: "deleteFile", channelId: 0, name: `/${entry.name}` }));
+    window.setTimeout(handleServerIconsRefresh, 300);
   };
 
   const handleSendPoke = () => {
@@ -5771,6 +5982,16 @@ function AppInner() {
         />
       )}
 
+      {serverIconsOpen && (
+        <ServerIconsDialog
+          entries={serverIconEntries}
+          images={serverIconImages}
+          onUpload={handleServerIconUpload}
+          onDelete={handleServerIconDelete}
+          onClose={() => setServerIconsOpen(false)}
+        />
+      )}
+
       {contactsOpen && (
         <ContactsDialog
           contacts={contacts}
@@ -6171,6 +6392,16 @@ function AppInner() {
             <span className="ts-menu-item-label">{t("serverContext.addFavorite")}</span>
           </button>
           <div className="ts-menu-separator" />
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              handleShowServerIcons();
+              setServerContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">🖼️</span>
+            <span className="ts-menu-item-label">{t("serverContext.icons")}</span>
+          </button>
           <button
             className="ts-menu-item"
             onClick={() => {

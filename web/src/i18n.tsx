@@ -430,6 +430,12 @@ const translations: Record<Lang, Record<string, string>> = {
     "fileBrowser.uploading": "Wird hochgeladen...",
     "fileBrowser.downloading": "Wird heruntergeladen...",
 
+    "serverContext.icons": "Server-Icons...",
+    "serverIcons.title": "Server-Icons verwalten",
+    "serverIcons.upload": "Icon hochladen",
+    "serverIcons.iconId": "Icon-ID",
+    "serverIcons.empty": "Keine Icons vorhanden.",
+
     "clientContext.privateChat": "Privater Chat",
     "clientContext.poke": "Anstupsen",
     "clientContext.copyName": "Namen kopieren",
@@ -901,6 +907,12 @@ const translations: Record<Lang, Record<string, string>> = {
     "fileBrowser.deleteConfirm": "Really delete?",
     "fileBrowser.uploading": "Uploading...",
     "fileBrowser.downloading": "Downloading...",
+
+    "serverContext.icons": "Server Icons...",
+    "serverIcons.title": "Manage Server Icons",
+    "serverIcons.upload": "Upload Icon",
+    "serverIcons.iconId": "Icon ID",
+    "serverIcons.empty": "No icons found.",
 
     "clientContext.privateChat": "Private chat",
     "clientContext.poke": "Poke",

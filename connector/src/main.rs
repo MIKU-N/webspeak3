@@ -8,11 +8,14 @@ use base64::Engine;
 use clap::Parser;
 use futures::prelude::*;
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 
 use tsclientlib::audio::AudioHandler;
 use tsclientlib::events::{Event as BookEvent, PropertyId, PropertyValue};
-use tsclientlib::messages::c2s::{OutClientPokeRequestPart, OutSendTextMessagePart};
+use tsclientlib::messages::c2s::{
+	OutClientPokeRequestPart, OutCreateDirectoryPart, OutDeleteFilePart, OutFileListRequestPart,
+	OutRenameFilePart, OutSendTextMessagePart,
+};
 use tsclientlib::prelude::*;
 use tsclientlib::{
 	data, ChannelId, ClientId, CodecEncryptionMode, Connection, DisconnectOptions, HostBannerMode,
@@ -270,6 +273,18 @@ enum Event {
 	/// "permissionlist" lookup.
 	#[serde(rename = "permissionOverview")]
 	PermissionOverview { entries: Vec<PermissionOverviewEntry> },
+	/// Reply to a "ftlist" request - one channel/path's directory listing.
+	#[serde(rename = "fileList")]
+	FileList { cid: u64, path: String, entries: Vec<FileListEntry> },
+	/// A requested file download finished; `data` is the full file content,
+	/// base64-encoded. Whole files are buffered in memory and sent as one
+	/// event rather than streamed incrementally - fine for the file sizes a
+	/// TS3 channel filebase realistically holds, not meant for huge transfers.
+	#[serde(rename = "fileDownloadData")]
+	FileDownloadData { cid: u64, path: String, data: String },
+	/// A requested file upload finished successfully.
+	#[serde(rename = "fileUploadDone")]
+	FileUploadDone { cid: u64, path: String },
 }
 
 #[derive(Serialize)]
@@ -323,6 +338,16 @@ struct PermissionOverviewEntry {
 struct GroupEntry {
 	id: u64,
 	name: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct FileListEntry {
+	path: String,
+	name: String,
+	size: u64,
+	is_file: bool,
+	timestamp: String,
 }
 
 fn emit(event: &Event) {
@@ -658,6 +683,18 @@ async fn run(args: Args) -> Result<()> {
 	// Raw permoverview entries received before the permission-name cache was
 	// ready get buffered here and re-emitted once the names arrive.
 	let mut pending_perm_overview_raw: Option<Vec<(u32, i32, bool, bool)>> = None;
+	// Set by "ftlist" while a directory listing is in flight - the server
+	// replies with one notifyfilelist packet per entry (buffered here), then a
+	// final notifyfilelistfinished that triggers the actual emit.
+	let mut pending_file_list: Option<(u64, String)> = None;
+	let mut file_list_buffer: Vec<FileListEntry> = Vec::new();
+	// client_filetransfer_id -> (cid, path) for in-flight downloads, and
+	// -> (cid, path, data) for in-flight uploads. tsclientlib resolves the
+	// ftinitdownload/ftinitupload reply into a ready TCP stream on its own
+	// (StreamItem::FileDownload/FileUpload below); these just remember which
+	// request that stream belongs to.
+	let mut pending_downloads: HashMap<u16, (u64, String)> = HashMap::new();
+	let mut pending_uploads: HashMap<u16, (u64, String, Vec<u8>)> = HashMap::new();
 
 	enum LoopOutcome {
 		StdinLine(std::io::Result<Option<String>>),
@@ -1347,6 +1384,130 @@ async fn run(args: Args) -> Result<()> {
 								Err(e) => emit(&Event::Error { message: e.to_string() }),
 							}
 						}
+					} else if let Some(rest) = l.strip_prefix("ftlist ") {
+						let mut parts = rest.trim().splitn(2, ' ');
+						let cid_str = parts.next().unwrap_or("");
+						let path = parts.next().unwrap_or("/").trim();
+						let path = if path.is_empty() { "/" } else { path };
+						match cid_str.parse::<u64>() {
+							Ok(cid) => {
+								let part = OutFileListRequestPart {
+									channel_id: ChannelId(cid),
+									channel_password: Cow::Borrowed(""),
+									path: Cow::Borrowed(path),
+								};
+								match part.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_file_list = Some((cid, path.to_string()));
+										file_list_buffer.clear();
+										pending_messages.insert(handle, "File list".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid channel id: {cid_str}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("ftmkdir ") {
+						let mut parts = rest.trim().splitn(2, ' ');
+						let cid_str = parts.next().unwrap_or("");
+						let dirname = parts.next().unwrap_or("").trim();
+						match cid_str.parse::<u64>() {
+							Ok(cid) => {
+								let part = OutCreateDirectoryPart {
+									channel_id: ChannelId(cid),
+									channel_password: Cow::Borrowed(""),
+									directory_name: Cow::Borrowed(dirname),
+								};
+								match part.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Create directory".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid channel id: {cid_str}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("ftdelete ") {
+						let mut parts = rest.trim().splitn(2, ' ');
+						let cid_str = parts.next().unwrap_or("");
+						let name = parts.next().unwrap_or("").trim();
+						match cid_str.parse::<u64>() {
+							Ok(cid) => {
+								let part = OutDeleteFilePart {
+									channel_id: ChannelId(cid),
+									channel_password: Cow::Borrowed(""),
+									name: Cow::Borrowed(name),
+								};
+								match part.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Delete file".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid channel id: {cid_str}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("ftrename ") {
+						let mut parts = rest.splitn(3, '\t');
+						let cid_str = parts.next().unwrap_or("");
+						let old_name = parts.next().unwrap_or("");
+						let new_name = parts.next().unwrap_or("");
+						match cid_str.trim().parse::<u64>() {
+							Ok(cid) => {
+								let part = OutRenameFilePart {
+									channel_id: ChannelId(cid),
+									channel_password: Cow::Borrowed(""),
+									target_channel_id: None,
+									target_channel_password: None,
+									old_name: Cow::Borrowed(old_name),
+									new_name: Cow::Borrowed(new_name),
+								};
+								match part.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Rename file".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							Err(_) => emit(&Event::Error { message: format!("Invalid ftrename args: {rest}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("ftdownload ") {
+						// Download uses tsclientlib's own `download_file`/StreamItem::FileDownload
+						// machinery rather than a raw OutCommand: it already handles the whole
+						// "ftinitdownload, then connect+auth the returned TCP data port" dance
+						// for us (see StreamItem::FileDownload handling below).
+						let mut parts = rest.trim().splitn(2, ' ');
+						let cid_str = parts.next().unwrap_or("");
+						let path = parts.next().unwrap_or("").trim();
+						match cid_str.parse::<u64>() {
+							Ok(cid) => match con.download_file(ChannelId(cid), path, None, None) {
+								Ok(handle) => {
+									pending_downloads.insert(handle.0, (cid, path.to_string()));
+								}
+								Err(e) => emit(&Event::Error { message: format!("Download failed: {e}") }),
+							},
+							Err(_) => emit(&Event::Error { message: format!("Invalid channel id: {cid_str}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("ftupload ") {
+						let mut parts = rest.splitn(3, '\t');
+						let cid_str = parts.next().unwrap_or("");
+						let path = parts.next().unwrap_or("");
+						let data_b64 = parts.next().unwrap_or("");
+						match (
+							cid_str.trim().parse::<u64>(),
+							base64::engine::general_purpose::STANDARD.decode(data_b64.trim()),
+						) {
+							(Ok(cid), Ok(bytes)) => {
+								let size = bytes.len() as u64;
+								match con.upload_file(ChannelId(cid), path, None, size, true, false) {
+									Ok(handle) => {
+										pending_uploads.insert(handle.0, (cid, path.to_string(), bytes));
+									}
+									Err(e) => emit(&Event::Error { message: format!("Upload failed: {e}") }),
+								}
+							}
+							_ => emit(&Event::Error { message: "Invalid ftupload args".into() }),
+						}
 					} else if let Some(b64) = l.strip_prefix("audio ") {
 						match base64::engine::general_purpose::STANDARD.decode(b64.trim()) {
 							Ok(bytes) => {
@@ -1677,6 +1838,62 @@ async fn run(args: Args) -> Result<()> {
 								emit(&Event::PermissionOverview { entries });
 							}
 						}
+					}
+					if pending_file_list.is_some() {
+						if let InMessage::FileList(list) = &msg {
+							for part in list.iter() {
+								file_list_buffer.push(FileListEntry {
+									path: part.path.clone(),
+									name: part.name.clone(),
+									size: part.size,
+									is_file: part.is_file,
+									timestamp: part.date_time.to_string(),
+								});
+							}
+						} else if let InMessage::FileListFinished(_) = &msg {
+							if let Some((cid, path)) = pending_file_list.take() {
+								emit(&Event::FileList { cid, path, entries: std::mem::take(&mut file_list_buffer) });
+							}
+						}
+					}
+				}
+				Some(Ok(StreamItem::FileDownload(handle, result))) => {
+					if let Some((cid, path)) = pending_downloads.remove(&handle.0) {
+						// The whole download happens off the main select loop so a big
+						// file does not stall channel switches, chat, etc. while in flight;
+						// emit() is just a println! under the hood, so it is safe to call
+						// from a spawned task even while the main loop is emitting too.
+						let mut stream = result.stream;
+						tokio::spawn(async move {
+							let mut buf = Vec::new();
+							match stream.read_to_end(&mut buf).await {
+								Ok(_) => {
+									let data = base64::engine::general_purpose::STANDARD.encode(&buf);
+									emit(&Event::FileDownloadData { cid, path, data });
+								}
+								Err(e) => emit(&Event::Error { message: format!("Download failed: {e}") }),
+							}
+						});
+					}
+				}
+				Some(Ok(StreamItem::FileUpload(handle, result))) => {
+					if let Some((cid, path, data)) = pending_uploads.remove(&handle.0) {
+						let seek = result.seek_position as usize;
+						let mut stream = result.stream;
+						tokio::spawn(async move {
+							let slice = if seek < data.len() { &data[seek..] } else { &[][..] };
+							match stream.write_all(slice).await {
+								Ok(_) => emit(&Event::FileUploadDone { cid, path }),
+								Err(e) => emit(&Event::Error { message: format!("Upload failed: {e}") }),
+							}
+						});
+					}
+				}
+				Some(Ok(StreamItem::FiletransferFailed(handle, e))) => {
+					let was_pending = pending_downloads.remove(&handle.0).is_some()
+						|| pending_uploads.remove(&handle.0).is_some();
+					if was_pending {
+						emit(&Event::Error { message: format!("File transfer failed: {e}") });
 					}
 				}
 				Some(Ok(_)) => {}

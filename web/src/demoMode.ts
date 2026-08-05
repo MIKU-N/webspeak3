@@ -62,6 +62,36 @@ const DEMO_NPCS: DemoClient[] = [
   { id: 105, channel: 3, name: "Riley", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: true, awayMessage: "brb, grabbing coffee", isChannelCommander: false, country: "DE", uid: "demo-uid-riley", databaseId: 5, channelGroup: 4, serverGroups: [3, 4] },
 ];
 
+interface DemoFileEntry {
+  path: string;
+  name: string;
+  size: number;
+  isFile: boolean;
+  timestamp: string;
+}
+
+/** Keyed by "<channelId>:<path>" - a tiny in-memory filesystem so the
+ *  channel file browser has something real to navigate/mutate in the demo. */
+const DEMO_FILES: Record<string, DemoFileEntry[]> = {
+  "1:/": [
+    { path: "/", name: "readme.txt", size: 182, isFile: true, timestamp: "2024-01-01 12:00:00" },
+    { path: "/", name: "Musik", size: 0, isFile: false, timestamp: "2024-01-01 12:00:00" },
+  ],
+  "1:/Musik": [
+    { path: "/Musik", name: "lobby-theme.mp3", size: 4 * 1024 * 1024, isFile: true, timestamp: "2024-01-02 09:30:00" },
+  ],
+  "2:/": [],
+  "3:/": [],
+};
+
+function demoFileKey(channelId: number, path: string): string {
+  return `${channelId}:${path}`;
+}
+
+function demoNowTimestamp(): string {
+  return new Date().toISOString().slice(0, 19).replace("T", " ");
+}
+
 const SELF_ID = 101;
 
 /**
@@ -382,6 +412,65 @@ export class DemoSocket {
             ],
           })
         );
+        break;
+      }
+      case "getFileList": {
+        const key = demoFileKey(msg.channelId, msg.path);
+        this.after(300, () =>
+          this.emit({ type: "fileList", cid: msg.channelId, path: msg.path, entries: DEMO_FILES[key] ?? [] })
+        );
+        break;
+      }
+      case "createDirectory": {
+        const dir = msg.dirname as string;
+        const parent = dir.slice(0, dir.lastIndexOf("/")) || "/";
+        const name = dir.slice(dir.lastIndexOf("/") + 1);
+        const parentKey = demoFileKey(msg.channelId, parent);
+        DEMO_FILES[parentKey] = (DEMO_FILES[parentKey] ?? []).filter((e) => e.name !== name);
+        DEMO_FILES[parentKey].push({ path: parent, name, size: 0, isFile: false, timestamp: demoNowTimestamp() });
+        DEMO_FILES[demoFileKey(msg.channelId, dir)] = [];
+        break;
+      }
+      case "deleteFile": {
+        const full = msg.name as string;
+        const parent = full.slice(0, full.lastIndexOf("/")) || "/";
+        const name = full.slice(full.lastIndexOf("/") + 1);
+        const parentKey = demoFileKey(msg.channelId, parent);
+        if (DEMO_FILES[parentKey]) DEMO_FILES[parentKey] = DEMO_FILES[parentKey].filter((e) => e.name !== name);
+        break;
+      }
+      case "renameFile": {
+        const oldFull = msg.oldName as string;
+        const newFull = msg.newName as string;
+        const parent = oldFull.slice(0, oldFull.lastIndexOf("/")) || "/";
+        const oldName = oldFull.slice(oldFull.lastIndexOf("/") + 1);
+        const newName = newFull.slice(newFull.lastIndexOf("/") + 1);
+        const entry = DEMO_FILES[demoFileKey(msg.channelId, parent)]?.find((e) => e.name === oldName);
+        if (entry) entry.name = newName;
+        break;
+      }
+      case "downloadFile": {
+        const full = msg.path as string;
+        const name = full.slice(full.lastIndexOf("/") + 1);
+        this.after(400, () =>
+          this.emit({
+            type: "fileDownloadData",
+            cid: msg.channelId,
+            path: full,
+            data: btoa(`This is a demo file. There is no real content behind "${name}" in WebSpeak3's demo mode.`),
+          })
+        );
+        break;
+      }
+      case "uploadFile": {
+        const full = msg.path as string;
+        const parent = full.slice(0, full.lastIndexOf("/")) || "/";
+        const name = full.slice(full.lastIndexOf("/") + 1);
+        const parentKey = demoFileKey(msg.channelId, parent);
+        const sizeBytes = Math.floor(((msg.dataBase64 as string).length * 3) / 4);
+        DEMO_FILES[parentKey] = (DEMO_FILES[parentKey] ?? []).filter((e) => e.name !== name);
+        DEMO_FILES[parentKey].push({ path: parent, name, size: sizeBytes, isFile: true, timestamp: demoNowTimestamp() });
+        this.after(400, () => this.emit({ type: "fileUploadDone", cid: msg.channelId, path: full }));
         break;
       }
       // "disconnect" is intentionally unhandled here: handleDisconnect() in

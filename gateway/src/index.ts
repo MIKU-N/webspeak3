@@ -222,6 +222,30 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.getPermissionOverview();
         break;
       }
+      case "getFileList": {
+        await connection?.getFileList(msg.channelId, msg.path);
+        break;
+      }
+      case "createDirectory": {
+        await connection?.createDirectory(msg.channelId, msg.dirname);
+        break;
+      }
+      case "deleteFile": {
+        await connection?.deleteFile(msg.channelId, msg.name);
+        break;
+      }
+      case "renameFile": {
+        await connection?.renameFile(msg.channelId, msg.oldName, msg.newName);
+        break;
+      }
+      case "downloadFile": {
+        await connection?.downloadFile(msg.channelId, msg.path);
+        break;
+      }
+      case "uploadFile": {
+        await connection?.uploadFile(msg.channelId, msg.path, msg.dataBase64);
+        break;
+      }
       case "disconnect": {
         await connection?.disconnect(msg.message ?? "");
         break;

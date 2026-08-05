@@ -328,6 +328,14 @@ interface PermissionOverviewEntry {
   skip: boolean;
 }
 
+interface FileListEntry {
+  path: string;
+  name: string;
+  size: number;
+  isFile: boolean;
+  timestamp: string;
+}
+
 interface ClientConnectionInfoData {
   clientId: number;
   pingMs: number | null;
@@ -362,6 +370,24 @@ function formatBytes(bytes: number): string {
     unitIndex++;
   }
   return `${value.toFixed(1)} ${units[unitIndex]}`;
+}
+
+/** Turns a base64-encoded file (as delivered by the "fileDownloadData" event)
+ *  into an actual browser download, without ever round-tripping through the
+ *  gateway's HTTP surface - it's all-in-memory via a Blob + object URL. */
+function triggerBrowserDownload(filename: string, base64Data: string): void {
+  const binary = atob(base64Data);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes]);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function formatDurationSecs(totalSeconds: number): string {
@@ -439,6 +465,7 @@ function ChannelTree({
   onOpenPrivateChat,
   onPokeClient,
   onClientContextMenu,
+  onChannelContextMenu,
 }: {
   channels: ChannelInfo[];
   clients: ClientInfo[];
@@ -451,6 +478,7 @@ function ChannelTree({
   onOpenPrivateChat: (clientId: number, clientName: string) => void;
   onPokeClient: (clientId: number, clientName: string) => void;
   onClientContextMenu: (e: React.MouseEvent, clientId: number, clientName: string, isSelf: boolean) => void;
+  onChannelContextMenu: (e: React.MouseEvent, channelId: number, channelName: string) => void;
 }) {
   const t = useT();
   const children = channels.filter((c) => c.parent === parent).sort((a, b) => a.order - b.order);
@@ -466,6 +494,7 @@ function ChannelTree({
             }`}
             onClick={() => onSelectItem({ type: "channel", id: channel.id })}
             onDoubleClick={() => onSwitchChannel(channel.id)}
+            onContextMenu={(e) => onChannelContextMenu(e, channel.id, channel.name)}
             title={t("tree.clickToSelect")}
           >
             <ChannelIcon />
@@ -520,6 +549,7 @@ function ChannelTree({
             onOpenPrivateChat={onOpenPrivateChat}
             onPokeClient={onPokeClient}
             onClientContextMenu={onClientContextMenu}
+            onChannelContextMenu={onChannelContextMenu}
           />
         </li>
       ))}
@@ -1603,6 +1633,207 @@ function GroupAssignDialog({
                 );
               })}
             </ul>
+          )}
+        </div>
+        <div className="ts-dialog-buttons">
+          <div />
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Builds the full channel-relative path TS3's ft* commands expect (e.g.
+ *  "/foo/bar.txt") from a directory and a bare entry name. */
+function ftJoinPath(dir: string, name: string): string {
+  const base = dir === "/" || dir === "" ? "" : dir.replace(/\/+$/, "");
+  return `${base}/${name}`;
+}
+
+function ftParentPath(dir: string): string {
+  if (dir === "/" || dir === "") return "/";
+  const trimmed = dir.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  return idx <= 0 ? "/" : trimmed.slice(0, idx);
+}
+
+function FileBrowserDialog({
+  channelName,
+  path,
+  entries,
+  onNavigate,
+  onCreateDir,
+  onDelete,
+  onRename,
+  onDownload,
+  onUpload,
+  onRefresh,
+  onClose,
+}: {
+  channelName: string;
+  path: string;
+  entries: FileListEntry[] | null;
+  onNavigate: (path: string) => void;
+  onCreateDir: (name: string) => void;
+  onDelete: (entry: FileListEntry) => void;
+  onRename: (entry: FileListEntry, newName: string) => void;
+  onDownload: (entry: FileListEntry) => void;
+  onUpload: (file: File) => void;
+  onRefresh: () => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+  const [timedOut, setTimedOut] = useState(false);
+  const [renaming, setRenaming] = useState<{ entry: FileListEntry; value: string } | null>(null);
+  const [creatingDir, setCreatingDir] = useState(false);
+  const [newDirName, setNewDirName] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setTimedOut(false);
+    if (entries) return;
+    const id = window.setTimeout(() => setTimedOut(true), 6000);
+    return () => window.clearTimeout(id);
+  }, [entries, path]);
+
+  const sorted =
+    entries
+      ?.slice()
+      .sort((a, b) => (a.isFile === b.isFile ? a.name.localeCompare(b.name) : a.isFile ? 1 : -1)) ?? null;
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-file-browser-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>
+            {t("fileBrowser.title")} - {channelName}
+          </span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          <div className="ts-file-browser-toolbar">
+            <button onClick={() => onNavigate(ftParentPath(path))} disabled={path === "/"} title={t("fileBrowser.up")}>
+              ⬆ {t("fileBrowser.up")}
+            </button>
+            <span className="ts-file-browser-path">{path}</span>
+            <button onClick={onRefresh} title={t("fileBrowser.refresh")}>
+              🔄
+            </button>
+            <button onClick={() => setCreatingDir(true)} title={t("fileBrowser.newFolder")}>
+              🗀 {t("fileBrowser.newFolder")}
+            </button>
+            <button onClick={() => fileInputRef.current?.click()} title={t("fileBrowser.upload")}>
+              ⬆️ {t("fileBrowser.upload")}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onUpload(file);
+                e.target.value = "";
+              }}
+            />
+          </div>
+          {creatingDir && (
+            <form
+              className="ts-dialog-row"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (newDirName.trim()) onCreateDir(newDirName.trim());
+                setNewDirName("");
+                setCreatingDir(false);
+              }}
+            >
+              <input
+                autoFocus
+                value={newDirName}
+                onChange={(e) => setNewDirName(e.target.value)}
+                placeholder={t("fileBrowser.folderName")}
+              />
+              <button type="submit">{t("dialog.ok")}</button>
+              <button type="button" onClick={() => setCreatingDir(false)}>
+                {t("dialog.cancel")}
+              </button>
+            </form>
+          )}
+          {!sorted ? (
+            <div className="ts-connection-info-loading">
+              {timedOut ? t("connectionInfo.unavailable") : t("connectionInfo.loading")}
+            </div>
+          ) : sorted.length === 0 ? (
+            <div className="ts-connection-info-loading">{t("fileBrowser.empty")}</div>
+          ) : (
+            <div className="ts-permission-overview-scroll">
+              <table className="ts-ban-list-table">
+                <thead>
+                  <tr>
+                    <th>{t("fileBrowser.name")}</th>
+                    <th>{t("fileBrowser.size")}</th>
+                    <th>{t("fileBrowser.modified")}</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((entry) => (
+                    <tr key={entry.name}>
+                      <td>
+                        {renaming?.entry.name === entry.name ? (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              if (renaming.value.trim()) onRename(entry, renaming.value.trim());
+                              setRenaming(null);
+                            }}
+                          >
+                            <input
+                              autoFocus
+                              value={renaming.value}
+                              onChange={(ev) => setRenaming({ entry, value: ev.target.value })}
+                              onBlur={() => setRenaming(null)}
+                            />
+                          </form>
+                        ) : entry.isFile ? (
+                          <span>📄 {entry.name}</span>
+                        ) : (
+                          <button
+                            className="ts-link-button"
+                            onClick={() => onNavigate(ftJoinPath(path, entry.name))}
+                          >
+                            📁 {entry.name}
+                          </button>
+                        )}
+                      </td>
+                      <td>{entry.isFile ? formatBytes(entry.size) : ""}</td>
+                      <td>{entry.timestamp}</td>
+                      <td className="ts-file-browser-actions">
+                        {entry.isFile && (
+                          <button onClick={() => onDownload(entry)} title={t("fileBrowser.download")}>
+                            ⬇
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setRenaming({ entry, value: entry.name })}
+                          title={t("fileBrowser.rename")}
+                        >
+                          ✏
+                        </button>
+                        <button onClick={() => onDelete(entry)} title={t("fileBrowser.delete")}>
+                          🗑
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
         <div className="ts-dialog-buttons">
@@ -3192,6 +3423,11 @@ function AppInner() {
   } | null>(null);
   const [permissionOverviewOpen, setPermissionOverviewOpen] = useState(false);
   const [permissionOverview, setPermissionOverview] = useState<PermissionOverviewEntry[] | null>(null);
+  const [fileBrowserTarget, setFileBrowserTarget] = useState<{ channelId: number; channelName: string } | null>(
+    null
+  );
+  const [fileBrowserPath, setFileBrowserPath] = useState("/");
+  const [fileBrowserEntries, setFileBrowserEntries] = useState<FileListEntry[] | null>(null);
   const [treeWidth, setTreeWidth] = useState(260);
   const [upperHeight, setUpperHeight] = useState(340);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -3224,6 +3460,13 @@ function AppInner() {
   const clientContextMenuRef = useRef<HTMLDivElement>(null);
   const [serverContextMenu, setServerContextMenu] = useState<{ x: number; y: number } | null>(null);
   const serverContextMenuRef = useRef<HTMLDivElement>(null);
+  const [channelContextMenu, setChannelContextMenu] = useState<{
+    x: number;
+    y: number;
+    channelId: number;
+    channelName: string;
+  } | null>(null);
+  const channelContextMenuRef = useRef<HTMLDivElement>(null);
   const [whisperChannelIds, setWhisperChannelIds] = useState<Set<number>>(new Set());
   const [whisperClientIds, setWhisperClientIds] = useState<Set<number>>(new Set());
   const [whisperMenuOpen, setWhisperMenuOpen] = useState(false);
@@ -3791,6 +4034,17 @@ function AppInner() {
         case "permissionOverview":
           setPermissionOverview(data.entries);
           break;
+        case "fileList":
+          setFileBrowserEntries(data.entries);
+          break;
+        case "fileDownloadData": {
+          const filename = data.path.split("/").filter(Boolean).pop() ?? "download";
+          triggerBrowserDownload(filename, data.data);
+          break;
+        }
+        case "fileUploadDone":
+          handleFileBrowserRefresh();
+          break;
       }
     };
 
@@ -3968,6 +4222,22 @@ function AppInner() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [serverContextMenu]);
+
+  useEffect(() => {
+    if (!channelContextMenu) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (!channelContextMenuRef.current?.contains(e.target as Node)) setChannelContextMenu(null);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setChannelContextMenu(null);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [channelContextMenu]);
 
   useEffect(() => {
     if (!connected) {
@@ -4543,6 +4813,102 @@ function AppInner() {
     setPermissionOverviewOpen(true);
     setPermissionOverview(null);
     socketRef.current?.send(JSON.stringify({ type: "getPermissionOverview" }));
+  };
+
+  const handleChannelContextMenu = (e: React.MouseEvent, channelId: number, channelName: string) => {
+    e.preventDefault();
+    const x = Math.min(e.clientX, window.innerWidth - 220);
+    const y = Math.min(e.clientY, window.innerHeight - 200);
+    setChannelContextMenu({ x, y, channelId, channelName });
+  };
+
+  const handleShowFileBrowser = (channelId: number, channelName: string) => {
+    setFileBrowserTarget({ channelId, channelName });
+    setFileBrowserPath("/");
+    setFileBrowserEntries(null);
+    socketRef.current?.send(JSON.stringify({ type: "getFileList", channelId, path: "/" }));
+  };
+
+  const handleFileBrowserNavigate = (path: string) => {
+    if (!fileBrowserTarget) return;
+    setFileBrowserPath(path);
+    setFileBrowserEntries(null);
+    socketRef.current?.send(JSON.stringify({ type: "getFileList", channelId: fileBrowserTarget.channelId, path }));
+  };
+
+  const handleFileBrowserRefresh = () => {
+    if (!fileBrowserTarget) return;
+    setFileBrowserEntries(null);
+    socketRef.current?.send(
+      JSON.stringify({ type: "getFileList", channelId: fileBrowserTarget.channelId, path: fileBrowserPath })
+    );
+  };
+
+  const handleFileBrowserCreateDir = (name: string) => {
+    if (!fileBrowserTarget) return;
+    socketRef.current?.send(
+      JSON.stringify({
+        type: "createDirectory",
+        channelId: fileBrowserTarget.channelId,
+        dirname: ftJoinPath(fileBrowserPath, name),
+      })
+    );
+    // ftcreatedir gets no dedicated reply - the server processes commands from
+    // one connection in order, so a refresh sent right after is guaranteed to
+    // see the new directory.
+    window.setTimeout(handleFileBrowserRefresh, 300);
+  };
+
+  const handleFileBrowserDelete = (entry: FileListEntry) => {
+    if (!fileBrowserTarget) return;
+    if (!window.confirm(t("fileBrowser.deleteConfirm"))) return;
+    socketRef.current?.send(
+      JSON.stringify({
+        type: "deleteFile",
+        channelId: fileBrowserTarget.channelId,
+        name: ftJoinPath(fileBrowserPath, entry.name),
+      })
+    );
+    window.setTimeout(handleFileBrowserRefresh, 300);
+  };
+
+  const handleFileBrowserRename = (entry: FileListEntry, newName: string) => {
+    if (!fileBrowserTarget) return;
+    socketRef.current?.send(
+      JSON.stringify({
+        type: "renameFile",
+        channelId: fileBrowserTarget.channelId,
+        oldName: ftJoinPath(fileBrowserPath, entry.name),
+        newName: ftJoinPath(fileBrowserPath, newName),
+      })
+    );
+    window.setTimeout(handleFileBrowserRefresh, 300);
+  };
+
+  const handleFileBrowserDownload = (entry: FileListEntry) => {
+    if (!fileBrowserTarget) return;
+    socketRef.current?.send(
+      JSON.stringify({
+        type: "downloadFile",
+        channelId: fileBrowserTarget.channelId,
+        path: ftJoinPath(fileBrowserPath, entry.name),
+      })
+    );
+  };
+
+  const handleFileBrowserUpload = (file: File) => {
+    if (!fileBrowserTarget) return;
+    const channelId = fileBrowserTarget.channelId;
+    const targetPath = ftJoinPath(fileBrowserPath, file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string; // data:*/*;base64,AAAA...
+      const base64 = result.slice(result.indexOf(",") + 1);
+      socketRef.current?.send(
+        JSON.stringify({ type: "uploadFile", channelId, path: targetPath, dataBase64: base64 })
+      );
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSendPoke = () => {
@@ -5389,6 +5755,22 @@ function AppInner() {
         />
       )}
 
+      {fileBrowserTarget && (
+        <FileBrowserDialog
+          channelName={fileBrowserTarget.channelName}
+          path={fileBrowserPath}
+          entries={fileBrowserEntries}
+          onNavigate={handleFileBrowserNavigate}
+          onCreateDir={handleFileBrowserCreateDir}
+          onDelete={handleFileBrowserDelete}
+          onRename={handleFileBrowserRename}
+          onDownload={handleFileBrowserDownload}
+          onUpload={handleFileBrowserUpload}
+          onRefresh={handleFileBrowserRefresh}
+          onClose={() => setFileBrowserTarget(null)}
+        />
+      )}
+
       {contactsOpen && (
         <ContactsDialog
           contacts={contacts}
@@ -5833,6 +6215,26 @@ function AppInner() {
         </div>
       )}
 
+      {channelContextMenu && (
+        <div
+          ref={channelContextMenuRef}
+          className="ts-context-menu"
+          style={{ top: channelContextMenu.y, left: channelContextMenu.x }}
+        >
+          <div className="ts-context-menu-title">{channelContextMenu.channelName}</div>
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              handleShowFileBrowser(channelContextMenu.channelId, channelContextMenu.channelName);
+              setChannelContextMenu(null);
+            }}
+          >
+            <span className="ts-menu-item-icon">📁</span>
+            <span className="ts-menu-item-label">{t("channelContext.files")}</span>
+          </button>
+        </div>
+      )}
+
       <div className="ts-body">
         <div className="ts-upper" style={{ height: upperHeight }}>
           <div className="ts-tree-panel" style={{ width: treeWidth }}>
@@ -5858,6 +6260,7 @@ function AppInner() {
                   onOpenPrivateChat={handleOpenPrivateChat}
                   onPokeClient={handlePokeClient}
                   onClientContextMenu={handleClientContextMenu}
+                  onChannelContextMenu={handleChannelContextMenu}
                 />
               </>
             ) : (

@@ -81,6 +81,14 @@ export interface OfflineMessageListEntry {
   isRead: boolean;
 }
 
+export interface FileListEntry {
+  path: string;
+  name: string;
+  size: number;
+  isFile: boolean;
+  timestamp: string;
+}
+
 export type ServerLogEntry =
   | { kind: "clientJoin"; client: string; channel: string }
   | { kind: "clientLeave"; client: string }
@@ -151,7 +159,10 @@ export type Ts3ConnectionEvent =
     }
   | { type: "channelGroupList"; entries: GroupEntry[] }
   | { type: "serverGroupList"; entries: GroupEntry[] }
-  | { type: "permissionOverview"; entries: PermissionOverviewEntry[] };
+  | { type: "permissionOverview"; entries: PermissionOverviewEntry[] }
+  | { type: "fileList"; cid: number; path: string; entries: FileListEntry[] }
+  | { type: "fileDownloadData"; cid: number; path: string; data: string }
+  | { type: "fileUploadDone"; cid: number; path: string };
 
 export interface Ts3ConnectOptions {
   host: string;
@@ -320,7 +331,10 @@ export class Ts3Connection {
           | {
               type: "permissionOverview";
               entries: { name: string; description: string; value: number; negated: boolean; skip: boolean }[];
-            };
+            }
+          | { type: "fileList"; cid: number; path: string; entries: FileListEntry[] }
+          | { type: "fileDownloadData"; cid: number; path: string; data: string }
+          | { type: "fileUploadDone"; cid: number; path: string };
 
         if (event.type === "connected") {
           this.emit({
@@ -594,6 +608,38 @@ export class Ts3Connection {
 
   async getPermissionOverview(): Promise<void> {
     this.child?.stdin.write(`permoverview\n`);
+  }
+
+  async getFileList(channelId: number, path: string): Promise<void> {
+    const sanitized = (path || "/").replace(/[\r\n]+/g, " ").trim() || "/";
+    this.child?.stdin.write(`ftlist ${channelId} ${sanitized}\n`);
+  }
+
+  async createDirectory(channelId: number, dirname: string): Promise<void> {
+    const sanitized = dirname.replace(/[\r\n]+/g, " ").trim();
+    if (sanitized) this.child?.stdin.write(`ftmkdir ${channelId} ${sanitized}\n`);
+  }
+
+  async deleteFile(channelId: number, name: string): Promise<void> {
+    const sanitized = name.replace(/[\r\n]+/g, " ").trim();
+    if (sanitized) this.child?.stdin.write(`ftdelete ${channelId} ${sanitized}\n`);
+  }
+
+  async renameFile(channelId: number, oldName: string, newName: string): Promise<void> {
+    const sanitize = (s: string) => s.replace(/[\r\n\t]+/g, " ").trim();
+    this.child?.stdin.write(`ftrename ${channelId}\t${sanitize(oldName)}\t${sanitize(newName)}\n`);
+  }
+
+  async downloadFile(channelId: number, path: string): Promise<void> {
+    const sanitized = path.replace(/[\r\n]+/g, " ").trim();
+    if (sanitized) this.child?.stdin.write(`ftdownload ${channelId} ${sanitized}\n`);
+  }
+
+  /** `dataBase64` is the raw file content, base64-encoded - the browser reads
+   *  the picked File as a data URL/ArrayBuffer and sends it up already encoded. */
+  async uploadFile(channelId: number, path: string, dataBase64: string): Promise<void> {
+    const sanitizedPath = path.replace(/[\r\n\t]+/g, " ").trim();
+    this.child?.stdin.write(`ftupload ${channelId}\t${sanitizedPath}\t${dataBase64}\n`);
   }
 
   async sendChatMessage(message: string): Promise<void> {

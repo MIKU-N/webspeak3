@@ -310,6 +310,14 @@ interface ClientInfo {
   isChannelCommander: boolean;
   country: string;
   uid: string;
+  databaseId: number;
+  channelGroup: number;
+  serverGroups: number[];
+}
+
+interface GroupEntry {
+  id: number;
+  name: string;
 }
 
 interface ClientConnectionInfoData {
@@ -1515,6 +1523,82 @@ function OfflineMessagesDialog({
               <button onClick={() => setComposing(true)}>{t("offlineMessages.new")}</button>
             )}
           </div>
+          <div className="ts-dialog-buttons-right">
+            <button onClick={onClose}>{t("dialog.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GroupAssignDialog({
+  kind,
+  clientName,
+  groups,
+  currentGroupIds,
+  onSelect,
+  onClose,
+}: {
+  kind: "channel" | "server";
+  clientName: string;
+  groups: GroupEntry[] | null;
+  currentGroupIds: number[];
+  onSelect: (groupId: number, alreadyAssigned: boolean) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const backdrop = useBackdropDismiss(onClose);
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    setTimedOut(false);
+    if (groups) return;
+    const id = window.setTimeout(() => setTimedOut(true), 6000);
+    return () => window.clearTimeout(id);
+  }, [groups]);
+
+  return (
+    <div className="ts-dialog-backdrop" {...backdrop}>
+      <div className="ts-dialog ts-group-assign-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ts-dialog-titlebar">
+          <span>
+            {kind === "channel" ? t("groupAssign.channelTitle") : t("groupAssign.serverTitle")} - {clientName}
+          </span>
+          <button onClick={onClose} title={t("dialog.close")}>
+            ✕
+          </button>
+        </div>
+        <div className="ts-dialog-body">
+          {!groups ? (
+            <div className="ts-connection-info-loading">
+              {timedOut ? t("connectionInfo.unavailable") : t("connectionInfo.loading")}
+            </div>
+          ) : groups.length === 0 ? (
+            <div className="ts-connection-info-loading">{t("groupAssign.empty")}</div>
+          ) : (
+            <ul className="ts-group-assign-list">
+              {groups.map((g) => {
+                const assigned = currentGroupIds.includes(g.id);
+                return (
+                  <li key={g.id}>
+                    <button
+                      className={`ts-menu-item${assigned ? " ts-group-assign-current" : ""}`}
+                      onClick={() => onSelect(g.id, assigned)}
+                    >
+                      <span className="ts-menu-item-icon">{assigned ? "✔️" : kind === "channel" ? "🏷️" : "🎖️"}</span>
+                      <span className="ts-menu-item-label">{g.name}</span>
+                      {kind === "server" && assigned && (
+                        <span className="ts-group-assign-hint">{t("groupAssign.clickToRemove")}</span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+        <div className="ts-dialog-buttons">
+          <div />
           <div className="ts-dialog-buttons-right">
             <button onClick={onClose}>{t("dialog.close")}</button>
           </div>
@@ -3011,6 +3095,13 @@ function AppInner() {
   const [offlineMessageDetail, setOfflineMessageDetail] = useState<
     { messageId: number; clientUid: string; subject: string; message: string; timestamp: string } | null
   >(null);
+  const [channelGroups, setChannelGroups] = useState<GroupEntry[] | null>(null);
+  const [serverGroups, setServerGroups] = useState<GroupEntry[] | null>(null);
+  const [groupAssignTarget, setGroupAssignTarget] = useState<{
+    kind: "channel" | "server";
+    clientId: number;
+    clientName: string;
+  } | null>(null);
   const [treeWidth, setTreeWidth] = useState(260);
   const [upperHeight, setUpperHeight] = useState(340);
   const [selected, setSelected] = useState<SelectedItem | null>(null);
@@ -3596,6 +3687,12 @@ function AppInner() {
             message: data.message,
             timestamp: data.timestamp,
           });
+          break;
+        case "channelGroupList":
+          setChannelGroups(data.entries);
+          break;
+        case "serverGroupList":
+          setServerGroups(data.entries);
           break;
       }
     };
@@ -4289,6 +4386,48 @@ function AppInner() {
     const x = Math.min(e.clientX, window.innerWidth - 220);
     const y = Math.min(e.clientY, window.innerHeight - 300);
     setServerContextMenu({ x, y });
+  };
+
+  const handleShowChannelGroupAssign = (clientId: number, clientName: string) => {
+    setGroupAssignTarget({ kind: "channel", clientId, clientName });
+    setChannelGroups(null);
+    socketRef.current?.send(JSON.stringify({ type: "getChannelGroupList" }));
+  };
+
+  const handleShowServerGroupAssign = (clientId: number, clientName: string) => {
+    setGroupAssignTarget({ kind: "server", clientId, clientName });
+    setServerGroups(null);
+    socketRef.current?.send(JSON.stringify({ type: "getServerGroupList" }));
+  };
+
+  const handleSelectGroup = (groupId: number, alreadyAssigned: boolean) => {
+    if (!groupAssignTarget) return;
+    const target = clients.find((c) => c.id === groupAssignTarget.clientId);
+    if (!target) {
+      setGroupAssignTarget(null);
+      return;
+    }
+    if (groupAssignTarget.kind === "channel") {
+      socketRef.current?.send(
+        JSON.stringify({
+          type: "setChannelGroup",
+          channelGroupId: groupId,
+          channelId: target.channel,
+          clientDbId: target.databaseId,
+        })
+      );
+      setGroupAssignTarget(null);
+    } else {
+      socketRef.current?.send(
+        JSON.stringify({
+          type: alreadyAssigned ? "removeServerGroup" : "addServerGroup",
+          serverGroupId: groupId,
+          clientDbId: target.databaseId,
+        })
+      );
+      // Server group membership is multi-select, so keep the dialog open for
+      // further toggling instead of closing after a single action.
+    }
   };
 
   const handleSendPoke = () => {
@@ -5099,6 +5238,21 @@ function AppInner() {
         />
       )}
 
+      {groupAssignTarget && (
+        <GroupAssignDialog
+          kind={groupAssignTarget.kind}
+          clientName={groupAssignTarget.clientName}
+          groups={groupAssignTarget.kind === "channel" ? channelGroups : serverGroups}
+          currentGroupIds={(() => {
+            const target = clients.find((c) => c.id === groupAssignTarget.clientId);
+            if (!target) return [];
+            return groupAssignTarget.kind === "channel" ? [target.channelGroup] : target.serverGroups;
+          })()}
+          onSelect={handleSelectGroup}
+          onClose={() => setGroupAssignTarget(null)}
+        />
+      )}
+
       {contactsOpen && (
         <ContactsDialog
           contacts={contacts}
@@ -5347,11 +5501,23 @@ function AppInner() {
             </button>
           )}
           <div className="ts-menu-separator" />
-          <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              handleShowChannelGroupAssign(clientContextMenu.clientId, clientContextMenu.clientName);
+              setClientContextMenu(null);
+            }}
+          >
             <span className="ts-menu-item-icon">🏷️</span>
             <span className="ts-menu-item-label">{t("clientContext.assignChannelGroup")}</span>
           </button>
-          <button className="ts-menu-item" disabled title={t("clientContext.notSupported")}>
+          <button
+            className="ts-menu-item"
+            onClick={() => {
+              handleShowServerGroupAssign(clientContextMenu.clientId, clientContextMenu.clientName);
+              setClientContextMenu(null);
+            }}
+          >
             <span className="ts-menu-item-icon">🎖️</span>
             <span className="ts-menu-item-label">{t("clientContext.assignServerGroup")}</span>
           </button>

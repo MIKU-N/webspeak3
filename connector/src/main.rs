@@ -77,6 +77,9 @@ struct ClientInfo {
 	is_channel_commander: bool,
 	country: String,
 	uid: String,
+	database_id: u64,
+	channel_group: u64,
+	server_groups: Vec<u64>,
 }
 
 /// Payload for the "serveredit " stdin command - every field is optional so
@@ -256,6 +259,12 @@ enum Event {
 		message: String,
 		timestamp: String,
 	},
+	/// Reply to a "channelgrouplist" request.
+	#[serde(rename = "channelGroupList")]
+	ChannelGroupList { entries: Vec<GroupEntry> },
+	/// Reply to a "servergrouplist" request.
+	#[serde(rename = "serverGroupList")]
+	ServerGroupList { entries: Vec<GroupEntry> },
 }
 
 #[derive(Serialize)]
@@ -292,6 +301,13 @@ struct OfflineMessageListEntry {
 	subject: String,
 	timestamp: String,
 	is_read: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupEntry {
+	id: u64,
+	name: String,
 }
 
 fn emit(event: &Event) {
@@ -467,6 +483,9 @@ fn snapshot(con: &data::Connection) -> Event {
 			is_channel_commander: c.is_channel_commander,
 			country: c.country_code.clone(),
 			uid: c.uid.as_ref().map(|u| u.to_string()).unwrap_or_default(),
+			database_id: c.database_id.0,
+			channel_group: c.channel_group.0,
+			server_groups: c.server_groups.iter().map(|g| g.0).collect(),
 		})
 		.collect();
 	Event::Channels { channels, clients }
@@ -611,6 +630,8 @@ async fn run(args: Args) -> Result<()> {
 	let mut pending_complain_list = false;
 	let mut pending_offline_message_list = false;
 	let mut pending_offline_message_get = false;
+	let mut pending_channel_group_list = false;
+	let mut pending_server_group_list = false;
 
 	enum LoopOutcome {
 		StdinLine(std::io::Result<Option<String>>),
@@ -1127,6 +1148,105 @@ async fn run(args: Args) -> Result<()> {
 							}
 							Err(_) => emit(&Event::Error { message: format!("Invalid message id: {rest}") }),
 						}
+					} else if l == "channelgrouplist" {
+						let packet = OutCommand::new(
+							Direction::C2S,
+							Flags::empty(),
+							PacketType::Command,
+							"channelgrouplist",
+						);
+						match packet.send_with_result(&mut con) {
+							Ok(handle) => {
+								pending_channel_group_list = true;
+								pending_messages.insert(handle, "Channel group list".into());
+							}
+							Err(e) => emit(&Event::Error { message: e.to_string() }),
+						}
+					} else if l == "servergrouplist" {
+						let packet = OutCommand::new(
+							Direction::C2S,
+							Flags::empty(),
+							PacketType::Command,
+							"servergrouplist",
+						);
+						match packet.send_with_result(&mut con) {
+							Ok(handle) => {
+								pending_server_group_list = true;
+								pending_messages.insert(handle, "Server group list".into());
+							}
+							Err(e) => emit(&Event::Error { message: e.to_string() }),
+						}
+					} else if let Some(rest) = l.strip_prefix("setchannelgroup ") {
+						let mut parts = rest.trim().splitn(3, ' ');
+						let cgid_str = parts.next().unwrap_or("");
+						let cid_str = parts.next().unwrap_or("");
+						let cldbid_str = parts.next().unwrap_or("");
+						match (cgid_str.parse::<u64>(), cid_str.parse::<u64>(), cldbid_str.parse::<u64>()) {
+							(Ok(cgid), Ok(cid), Ok(cldbid)) => {
+								let mut packet = OutCommand::new(
+									Direction::C2S,
+									Flags::empty(),
+									PacketType::Command,
+									"setclientchannelgroup",
+								);
+								packet.write_arg("cgid", &cgid);
+								packet.write_arg("cid", &cid);
+								packet.write_arg("cldbid", &cldbid);
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Assign channel group".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							_ => emit(&Event::Error { message: format!("Invalid setchannelgroup args: {rest}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("addservergroup ") {
+						let mut parts = rest.trim().splitn(2, ' ');
+						let sgid_str = parts.next().unwrap_or("");
+						let cldbid_str = parts.next().unwrap_or("");
+						match (sgid_str.parse::<u64>(), cldbid_str.parse::<u64>()) {
+							(Ok(sgid), Ok(cldbid)) => {
+								let mut packet = OutCommand::new(
+									Direction::C2S,
+									Flags::empty(),
+									PacketType::Command,
+									"servergroupaddclient",
+								);
+								packet.write_arg("sgid", &sgid);
+								packet.write_arg("cldbid", &cldbid);
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Assign server group".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							_ => emit(&Event::Error { message: format!("Invalid addservergroup args: {rest}") }),
+						}
+					} else if let Some(rest) = l.strip_prefix("delservergroup ") {
+						let mut parts = rest.trim().splitn(2, ' ');
+						let sgid_str = parts.next().unwrap_or("");
+						let cldbid_str = parts.next().unwrap_or("");
+						match (sgid_str.parse::<u64>(), cldbid_str.parse::<u64>()) {
+							(Ok(sgid), Ok(cldbid)) => {
+								let mut packet = OutCommand::new(
+									Direction::C2S,
+									Flags::empty(),
+									PacketType::Command,
+									"servergroupdelclient",
+								);
+								packet.write_arg("sgid", &sgid);
+								packet.write_arg("cldbid", &cldbid);
+								match packet.send_with_result(&mut con) {
+									Ok(handle) => {
+										pending_messages.insert(handle, "Remove server group".into());
+									}
+									Err(e) => emit(&Event::Error { message: e.to_string() }),
+								}
+							}
+							_ => emit(&Event::Error { message: format!("Invalid delservergroup args: {rest}") }),
+						}
 					} else if let Some(b64) = l.strip_prefix("audio ") {
 						match base64::engine::general_purpose::STANDARD.decode(b64.trim()) {
 							Ok(bytes) => {
@@ -1374,6 +1494,26 @@ async fn run(args: Args) -> Result<()> {
 								});
 							}
 							pending_offline_message_get = false;
+						}
+					}
+					if pending_channel_group_list {
+						if let InMessage::ChannelGroupList(list) = &msg {
+							let entries: Vec<GroupEntry> = list
+								.iter()
+								.map(|part| GroupEntry { id: part.channel_group.0, name: part.name.clone() })
+								.collect();
+							emit(&Event::ChannelGroupList { entries });
+							pending_channel_group_list = false;
+						}
+					}
+					if pending_server_group_list {
+						if let InMessage::ServerGroupList(list) = &msg {
+							let entries: Vec<GroupEntry> = list
+								.iter()
+								.map(|part| GroupEntry { id: part.server_group_id.0, name: part.name.clone() })
+								.collect();
+							emit(&Event::ServerGroupList { entries });
+							pending_server_group_list = false;
 						}
 					}
 				}

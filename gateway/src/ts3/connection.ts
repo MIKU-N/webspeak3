@@ -33,6 +33,14 @@ export interface ClientInfo {
   isChannelCommander: boolean;
   country: string;
   uid: string;
+  databaseId: number;
+  channelGroup: number;
+  serverGroups: number[];
+}
+
+export interface GroupEntry {
+  id: number;
+  name: string;
 }
 
 export interface BanListEntry {
@@ -132,7 +140,9 @@ export type Ts3ConnectionEvent =
       subject: string;
       message: string;
       timestamp: string;
-    };
+    }
+  | { type: "channelGroupList"; entries: GroupEntry[] }
+  | { type: "serverGroupList"; entries: GroupEntry[] };
 
 export interface Ts3ConnectOptions {
   host: string;
@@ -190,6 +200,9 @@ export class Ts3Connection {
           is_channel_commander: boolean;
           country: string;
           uid: string;
+          database_id: number;
+          channel_group: number;
+          server_groups: number[];
         }
 
         interface RawChannelInfo {
@@ -292,7 +305,9 @@ export class Ts3Connection {
               subject: string;
               message: string;
               timestamp: string;
-            };
+            }
+          | { type: "channelGroupList"; entries: { id: number; name: string }[] }
+          | { type: "serverGroupList"; entries: { id: number; name: string }[] };
 
         if (event.type === "connected") {
           this.emit({
@@ -330,6 +345,9 @@ export class Ts3Connection {
               isChannelCommander: c.is_channel_commander,
               country: c.country,
               uid: c.uid,
+              databaseId: c.database_id,
+              channelGroup: c.channel_group,
+              serverGroups: c.server_groups,
             })),
           });
         } else if (event.type === "privateMessage") {
@@ -533,6 +551,26 @@ export class Ts3Connection {
 
   async markOfflineMessageRead(messageId: number): Promise<void> {
     this.child?.stdin.write(`messageupdateflag ${messageId} 1\n`);
+  }
+
+  async getChannelGroupList(): Promise<void> {
+    this.child?.stdin.write(`channelgrouplist\n`);
+  }
+
+  async getServerGroupList(): Promise<void> {
+    this.child?.stdin.write(`servergrouplist\n`);
+  }
+
+  async setChannelGroup(channelGroupId: number, channelId: number, clientDbId: number): Promise<void> {
+    this.child?.stdin.write(`setchannelgroup ${channelGroupId} ${channelId} ${clientDbId}\n`);
+  }
+
+  async addServerGroup(serverGroupId: number, clientDbId: number): Promise<void> {
+    this.child?.stdin.write(`addservergroup ${serverGroupId} ${clientDbId}\n`);
+  }
+
+  async removeServerGroup(serverGroupId: number, clientDbId: number): Promise<void> {
+    this.child?.stdin.write(`delservergroup ${serverGroupId} ${clientDbId}\n`);
   }
 
   async sendChatMessage(message: string): Promise<void> {

@@ -194,6 +194,26 @@ wss.on("connection", (socket: WebSocket) => {
         await connection?.markOfflineMessageRead(msg.messageId);
         break;
       }
+      case "getChannelGroupList": {
+        await connection?.getChannelGroupList();
+        break;
+      }
+      case "getServerGroupList": {
+        await connection?.getServerGroupList();
+        break;
+      }
+      case "setChannelGroup": {
+        await connection?.setChannelGroup(msg.channelGroupId, msg.channelId, msg.clientDbId);
+        break;
+      }
+      case "addServerGroup": {
+        await connection?.addServerGroup(msg.serverGroupId, msg.clientDbId);
+        break;
+      }
+      case "removeServerGroup": {
+        await connection?.removeServerGroup(msg.serverGroupId, msg.clientDbId);
+        break;
+      }
       case "disconnect": {
         await connection?.disconnect(msg.message ?? "");
         break;

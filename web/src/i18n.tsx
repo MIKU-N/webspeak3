@@ -395,6 +395,11 @@ const translations: Record<Lang, Record<string, string>> = {
     "offlineMessages.backToList": "Zurück zur Liste",
     "dialog.cancel": "Abbrechen",
 
+    "groupAssign.channelTitle": "Channel-Gruppe zuweisen",
+    "groupAssign.serverTitle": "Server-Gruppe zuweisen",
+    "groupAssign.empty": "Keine Gruppen vorhanden.",
+    "groupAssign.clickToRemove": "Klicken zum Entfernen",
+
     "clientContext.privateChat": "Privater Chat",
     "clientContext.poke": "Anstupsen",
     "clientContext.copyName": "Namen kopieren",
@@ -831,6 +836,11 @@ const translations: Record<Lang, Record<string, string>> = {
     "offlineMessages.markRead": "Mark as read",
     "offlineMessages.backToList": "Back to list",
     "dialog.cancel": "Cancel",
+
+    "groupAssign.channelTitle": "Assign Channel Group",
+    "groupAssign.serverTitle": "Assign Server Group",
+    "groupAssign.empty": "No groups found.",
+    "groupAssign.clickToRemove": "Click to remove",
 
     "clientContext.privateChat": "Private chat",
     "clientContext.poke": "Poke",

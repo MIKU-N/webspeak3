@@ -30,6 +30,9 @@ interface DemoClient {
   isChannelCommander: boolean;
   country: string;
   uid: string;
+  databaseId: number;
+  channelGroup: number;
+  serverGroups: number[];
 }
 
 const DEMO_CHANNELS: DemoChannel[] = [
@@ -38,11 +41,25 @@ const DEMO_CHANNELS: DemoChannel[] = [
   { id: 3, parent: 0, order: 2, name: "AFK", topic: "", codec: "Opus Voice", maxClients: null, hasPassword: false },
 ];
 
+const DEMO_CHANNEL_GROUPS = [
+  { id: 1, name: "Channel Admin" },
+  { id: 2, name: "Operator" },
+  { id: 3, name: "Voice" },
+  { id: 4, name: "Guest" },
+];
+
+const DEMO_SERVER_GROUPS = [
+  { id: 1, name: "Server Admin" },
+  { id: 2, name: "Moderator" },
+  { id: 3, name: "Trusted" },
+  { id: 4, name: "Guest" },
+];
+
 const DEMO_NPCS: DemoClient[] = [
-  { id: 102, channel: 1, name: "Alex", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: true, country: "US", uid: "demo-uid-alex" },
-  { id: 103, channel: 2, name: "Sam", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "GB", uid: "demo-uid-sam" },
-  { id: 104, channel: 2, name: "Jordan", inputMuted: true, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "CA", uid: "demo-uid-jordan" },
-  { id: 105, channel: 3, name: "Riley", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: true, awayMessage: "brb, grabbing coffee", isChannelCommander: false, country: "DE", uid: "demo-uid-riley" },
+  { id: 102, channel: 1, name: "Alex", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: true, country: "US", uid: "demo-uid-alex", databaseId: 2, channelGroup: 2, serverGroups: [2] },
+  { id: 103, channel: 2, name: "Sam", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "GB", uid: "demo-uid-sam", databaseId: 3, channelGroup: 4, serverGroups: [4] },
+  { id: 104, channel: 2, name: "Jordan", inputMuted: true, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "CA", uid: "demo-uid-jordan", databaseId: 4, channelGroup: 4, serverGroups: [4] },
+  { id: 105, channel: 3, name: "Riley", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: true, awayMessage: "brb, grabbing coffee", isChannelCommander: false, country: "DE", uid: "demo-uid-riley", databaseId: 5, channelGroup: 4, serverGroups: [3, 4] },
 ];
 
 const SELF_ID = 101;
@@ -63,6 +80,8 @@ export class DemoSocket {
   private closed = false;
   private timers: number[] = [];
   private selfChannel = 1;
+  private selfChannelGroup = 4;
+  private selfServerGroups = new Set<number>([4]);
 
   constructor() {
     this.after(400, () => {
@@ -311,6 +330,39 @@ export class DemoSocket {
         // No observable effect - the frontend already optimistically updates
         // its own state for delete/read, and there's no NPC to reply to a send.
         break;
+      case "getChannelGroupList":
+        this.after(300, () => this.emit({ type: "channelGroupList", entries: DEMO_CHANNEL_GROUPS }));
+        break;
+      case "getServerGroupList":
+        this.after(300, () => this.emit({ type: "serverGroupList", entries: DEMO_SERVER_GROUPS }));
+        break;
+      case "setChannelGroup": {
+        const npc = DEMO_NPCS.find((c) => c.databaseId === msg.clientDbId);
+        if (npc) npc.channelGroup = msg.channelGroupId;
+        else if (msg.clientDbId === 1) this.selfChannelGroup = msg.channelGroupId;
+        this.after(200, () => this.sendChannels(this.lastNickname));
+        break;
+      }
+      case "addServerGroup": {
+        const npc = DEMO_NPCS.find((c) => c.databaseId === msg.clientDbId);
+        if (npc) {
+          if (!npc.serverGroups.includes(msg.serverGroupId)) npc.serverGroups.push(msg.serverGroupId);
+        } else if (msg.clientDbId === 1) {
+          this.selfServerGroups.add(msg.serverGroupId);
+        }
+        this.after(200, () => this.sendChannels(this.lastNickname));
+        break;
+      }
+      case "removeServerGroup": {
+        const npc = DEMO_NPCS.find((c) => c.databaseId === msg.clientDbId);
+        if (npc) {
+          npc.serverGroups = npc.serverGroups.filter((g) => g !== msg.serverGroupId);
+        } else if (msg.clientDbId === 1) {
+          this.selfServerGroups.delete(msg.serverGroupId);
+        }
+        this.after(200, () => this.sendChannels(this.lastNickname));
+        break;
+      }
       // "disconnect" is intentionally unhandled here: handleDisconnect() in
       // App.tsx always calls socket.close() right after sending it, and
       // close() already emits the "disconnected" event below.
@@ -366,6 +418,9 @@ export class DemoSocket {
       isChannelCommander: false,
       country: "",
       uid: "demo-uid-self",
+      databaseId: 1,
+      channelGroup: this.selfChannelGroup,
+      serverGroups: [...this.selfServerGroups],
     };
     this.emit({ type: "channels", channels: DEMO_CHANNELS, clients: [self, ...DEMO_NPCS] });
   }

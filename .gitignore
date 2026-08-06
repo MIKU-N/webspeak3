@@ -7,3 +7,5 @@ dist-ssr/
 .env.local
 .DS_Store
 docker-compose.override.yml
+.claude/
+CLAUDE.md

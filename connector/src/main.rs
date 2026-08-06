@@ -1809,9 +1809,6 @@ async fn run(args: Args) -> Result<()> {
 			},
 			LoopOutcome::ConEvent(ev) => match ev {
 				Some(Ok(StreamItem::BookEvents(events))) => {
-					if pending_channel_group_list || pending_server_group_list {
-						eprintln!("DEBUG BookEvents while pending group list: {events:?}");
-					}
 					for event in &events {
 						if let BookEvent::Message { target, invoker, message } = event {
 							match target {
@@ -1921,9 +1918,6 @@ async fn run(args: Args) -> Result<()> {
 					}
 				}
 				Some(Ok(StreamItem::MessageResult(handle, result))) => {
-					if pending_channel_group_list || pending_server_group_list {
-						eprintln!("DEBUG MessageResult while pending group list: handle={handle:?} result={result:?}");
-					}
 					if let Some(label) = pending_messages.remove(&handle) {
 						if let Err(e) = result {
 							if e.missing_permission.is_some() {
@@ -1933,13 +1927,37 @@ async fn run(args: Args) -> Result<()> {
 							} else {
 								emit(&Event::Error { message: format!("{label} failed: {e}") });
 							}
+							pending_channel_group_list = false;
+							pending_server_group_list = false;
+						} else if label == "Channel group list" && pending_channel_group_list {
+							// The server never sends this back as a notifychannelgrouplist
+							// reply we can match on InMessage - it arrives as book-state
+							// PropertyAdded events instead, already applied to the connection by the
+							// time this Ok(()) shows up, so read the groups straight out of
+							// book state instead of waiting for a reply that never comes.
+							let state = con.get_state()?;
+							let mut entries: Vec<GroupEntry> = state
+								.channel_groups
+								.values()
+								.map(|g| GroupEntry { id: g.id.0, name: g.name.clone() })
+								.collect();
+							entries.sort_by_key(|g| g.id);
+							emit(&Event::ChannelGroupList { entries });
+							pending_channel_group_list = false;
+						} else if label == "Server group list" && pending_server_group_list {
+							let state = con.get_state()?;
+							let mut entries: Vec<GroupEntry> = state
+								.server_groups
+								.values()
+								.map(|g| GroupEntry { id: g.id.0, name: g.name.clone() })
+								.collect();
+							entries.sort_by_key(|g| g.id);
+							emit(&Event::ServerGroupList { entries });
+							pending_server_group_list = false;
 						}
 					}
 				}
 				Some(Ok(StreamItem::MessageEvent(msg))) => {
-					if pending_channel_group_list || pending_server_group_list {
-						eprintln!("DEBUG MessageEvent while pending group list: {msg:?}");
-					}
 					if pending_server_log {
 						if let InMessage::ServerLog(log) = &msg {
 							let lines: Vec<String> = log.iter().map(|part| part.log.clone()).collect();

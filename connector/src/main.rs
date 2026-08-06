@@ -1954,6 +1954,48 @@ async fn run(args: Args) -> Result<()> {
 							entries.sort_by_key(|g| g.id);
 							emit(&Event::ServerGroupList { entries });
 							pending_server_group_list = false;
+						} else if label == "Permission list" && pending_permission_list {
+							pending_permission_list = false;
+							if let Some(raw) = pending_perm_overview_raw.take() {
+								let entries: Vec<PermissionOverviewEntry> = raw
+									.into_iter()
+									.map(|(id, value, negated, skip)| {
+										let (name, description) = permission_names
+											.get(&id)
+											.cloned()
+											.unwrap_or_else(|| (format!("#{id}"), String::new()));
+										PermissionOverviewEntry { name, description, value, negated, skip }
+									})
+									.collect();
+								emit(&Event::PermissionOverview { entries });
+							}
+							if let Some(raw) = pending_perm_list_raw.take() {
+								if let Some((scope, id1, id2)) = pending_perm_list.take() {
+									let entries: Vec<PermissionOverviewEntry> = raw
+										.into_iter()
+										.map(|(id, value, negated, skip)| {
+											let (name, description) = permission_names
+												.get(&id)
+												.cloned()
+												.unwrap_or_else(|| (format!("#{id}"), String::new()));
+											PermissionOverviewEntry { name, description, value, negated, skip }
+										})
+										.collect();
+									emit(&Event::PermList { scope, id1, id2, entries });
+								}
+							}
+							if pending_permission_catalog {
+								pending_permission_catalog = false;
+								let entries: Vec<PermissionCatalogEntry> = permission_names
+									.iter()
+									.map(|(id, (name, description))| PermissionCatalogEntry {
+										id: *id,
+										name: name.clone(),
+										description: description.clone(),
+									})
+									.collect();
+								emit(&Event::PermissionCatalog { entries });
+							}
 						}
 					}
 				}
@@ -2054,6 +2096,13 @@ async fn run(args: Args) -> Result<()> {
 						}
 					}
 					if pending_permission_list {
+						// Just accumulate here - a full permissionlist reply on a real
+						// account with hundreds of permissions arrives as several
+						// separate notifypermissionlist events (unlike the tiny
+						// marker-only reply a permission-limited guest gets, which
+						// fits in one), so finalizing after the first one truncates
+						// the name table. The actual end-of-command signal is the
+						// MessageResult for this handle, handled below.
 						if let InMessage::PermList(list) = &msg {
 							for part in list.iter() {
 								if let Some(id) = part.permission_id {
@@ -2065,48 +2114,6 @@ async fn run(args: Args) -> Result<()> {
 										),
 									);
 								}
-							}
-							pending_permission_list = false;
-							if let Some(raw) = pending_perm_overview_raw.take() {
-								let entries: Vec<PermissionOverviewEntry> = raw
-									.into_iter()
-									.map(|(id, value, negated, skip)| {
-										let (name, description) = permission_names
-											.get(&id)
-											.cloned()
-											.unwrap_or_else(|| (format!("#{id}"), String::new()));
-										PermissionOverviewEntry { name, description, value, negated, skip }
-									})
-									.collect();
-								emit(&Event::PermissionOverview { entries });
-							}
-							if let Some(raw) = pending_perm_list_raw.take() {
-								if let Some((scope, id1, id2)) = pending_perm_list.clone() {
-									let entries: Vec<PermissionOverviewEntry> = raw
-										.into_iter()
-										.map(|(id, value, negated, skip)| {
-											let (name, description) = permission_names
-												.get(&id)
-												.cloned()
-												.unwrap_or_else(|| (format!("#{id}"), String::new()));
-											PermissionOverviewEntry { name, description, value, negated, skip }
-										})
-										.collect();
-									emit(&Event::PermList { scope, id1, id2, entries });
-									pending_perm_list = None;
-								}
-							}
-							if pending_permission_catalog {
-								pending_permission_catalog = false;
-								let entries: Vec<PermissionCatalogEntry> = permission_names
-									.iter()
-									.map(|(id, (name, description))| PermissionCatalogEntry {
-										id: *id,
-										name: name.clone(),
-										description: description.clone(),
-									})
-									.collect();
-								emit(&Event::PermissionCatalog { entries });
 							}
 						}
 					}

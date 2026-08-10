@@ -1542,12 +1542,14 @@ async fn run(args: Args) -> Result<()> {
 						let mut parts = rest.trim().splitn(2, ' ');
 						let cid_str = parts.next().unwrap_or("");
 						let path = parts.next().unwrap_or("").trim();
+						eprintln!("DEBUG ftdownload requested: cid={cid_str} path={path}");
 						match cid_str.parse::<u64>() {
 							Ok(cid) => match con.download_file(ChannelId(cid), path, None, None) {
 								Ok(handle) => {
+									eprintln!("DEBUG ftdownload handle={} for {path}", handle.0);
 									pending_downloads.insert(handle.0, (cid, path.to_string()));
 								}
-								Err(e) => emit(&Event::Error { message: format!("Download failed: {e}") }),
+								Err(e) => eprintln!("DEBUG ftdownload failed for {path}: {e}"),
 							},
 							Err(_) => emit(&Event::Error { message: format!("Invalid channel id: {cid_str}") }),
 						}
@@ -2287,10 +2289,14 @@ async fn run(args: Args) -> Result<()> {
 							let mut buf = Vec::new();
 							match stream.read_to_end(&mut buf).await {
 								Ok(_) => {
+									eprintln!("DEBUG ftdownload done: cid={cid} path={path} bytes={}", buf.len());
 									let data = base64::engine::general_purpose::STANDARD.encode(&buf);
 									emit(&Event::FileDownloadData { cid, path, data });
 								}
-								Err(e) => emit(&Event::Error { message: format!("Download failed: {e}") }),
+								Err(e) => {
+									eprintln!("DEBUG ftdownload read error: cid={cid} path={path}: {e}");
+									emit(&Event::Error { message: format!("Download failed: {e}") });
+								}
 							}
 						});
 					}

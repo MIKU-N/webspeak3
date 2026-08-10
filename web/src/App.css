@@ -543,6 +543,14 @@
   background: color-mix(in srgb, #4caf50 15%, transparent);
 }
 
+.ts-client-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: auto;
+  padding-right: 0.3rem;
+}
+
 .ts-status-icons {
   display: inline-flex;
   gap: 0.15rem;

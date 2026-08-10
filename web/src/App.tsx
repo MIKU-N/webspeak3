@@ -561,13 +561,15 @@ function ChannelTree({
                     {c.away && c.awayMessage && (
                       <span className="ts-client-away-message">({c.awayMessage})</span>
                     )}
-                    <ClientStatusIcons client={c} />
-                    {groupIconIds(c).map((iconId) => {
-                      const base64 = groupIconImages[`/icon_${iconId}`];
-                      return base64 ? (
-                        <img key={iconId} className="ts-group-icon" src={iconDataUrl(base64)} alt="" />
-                      ) : null;
-                    })}
+                    <span className="ts-client-icons">
+                      <ClientStatusIcons client={c} />
+                      {groupIconIds(c).map((iconId) => {
+                        const base64 = groupIconImages[`/icon_${iconId}`];
+                        return base64 ? (
+                          <img key={iconId} className="ts-group-icon" src={iconDataUrl(base64)} alt="" />
+                        ) : null;
+                      })}
+                    </span>
                     {c.id !== ownClientId && (
                       <button
                         className="ts-poke-button"

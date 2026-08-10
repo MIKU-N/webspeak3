@@ -1974,6 +1974,7 @@ async fn run(args: Args) -> Result<()> {
 								.map(|g| GroupEntry { id: g.id.0, name: g.name.clone(), icon_id: g.icon.0 })
 								.collect();
 							entries.sort_by_key(|g| g.id);
+							eprintln!("DEBUG channel groups: {:?}", entries.iter().map(|g| (g.id, &g.name, g.icon_id)).collect::<Vec<_>>());
 							emit(&Event::ChannelGroupList { entries });
 							pending_channel_group_list = false;
 						} else if label == "Server group list" && pending_server_group_list {
@@ -1984,6 +1985,7 @@ async fn run(args: Args) -> Result<()> {
 								.map(|g| GroupEntry { id: g.id.0, name: g.name.clone(), icon_id: g.icon.0 })
 								.collect();
 							entries.sort_by_key(|g| g.id);
+							eprintln!("DEBUG server groups: {:?}", entries.iter().map(|g| (g.id, &g.name, g.icon_id)).collect::<Vec<_>>());
 							emit(&Event::ServerGroupList { entries });
 							pending_server_group_list = false;
 						} else if label == "Permission list" && pending_permission_list {

@@ -1542,14 +1542,12 @@ async fn run(args: Args) -> Result<()> {
 						let mut parts = rest.trim().splitn(2, ' ');
 						let cid_str = parts.next().unwrap_or("");
 						let path = parts.next().unwrap_or("").trim();
-						eprintln!("DEBUG ftdownload requested: cid={cid_str} path={path}");
 						match cid_str.parse::<u64>() {
 							Ok(cid) => match con.download_file(ChannelId(cid), path, None, None) {
 								Ok(handle) => {
-									eprintln!("DEBUG ftdownload handle={} for {path}", handle.0);
 									pending_downloads.insert(handle.0, (cid, path.to_string()));
 								}
-								Err(e) => eprintln!("DEBUG ftdownload failed for {path}: {e}"),
+								Err(e) => emit(&Event::Error { message: format!("Download failed: {e}") }),
 							},
 							Err(_) => emit(&Event::Error { message: format!("Invalid channel id: {cid_str}") }),
 						}
@@ -1976,7 +1974,6 @@ async fn run(args: Args) -> Result<()> {
 								.map(|g| GroupEntry { id: g.id.0, name: g.name.clone(), icon_id: g.icon.0 })
 								.collect();
 							entries.sort_by_key(|g| g.id);
-							eprintln!("DEBUG channel groups: {:?}", entries.iter().map(|g| (g.id, &g.name, g.icon_id)).collect::<Vec<_>>());
 							emit(&Event::ChannelGroupList { entries });
 							pending_channel_group_list = false;
 						} else if label == "Server group list" && pending_server_group_list {
@@ -1987,7 +1984,6 @@ async fn run(args: Args) -> Result<()> {
 								.map(|g| GroupEntry { id: g.id.0, name: g.name.clone(), icon_id: g.icon.0 })
 								.collect();
 							entries.sort_by_key(|g| g.id);
-							eprintln!("DEBUG server groups: {:?}", entries.iter().map(|g| (g.id, &g.name, g.icon_id)).collect::<Vec<_>>());
 							emit(&Event::ServerGroupList { entries });
 							pending_server_group_list = false;
 						} else if label == "Permission list" && pending_permission_list {
@@ -2289,14 +2285,10 @@ async fn run(args: Args) -> Result<()> {
 							let mut buf = Vec::new();
 							match stream.read_to_end(&mut buf).await {
 								Ok(_) => {
-									eprintln!("DEBUG ftdownload done: cid={cid} path={path} bytes={}", buf.len());
 									let data = base64::engine::general_purpose::STANDARD.encode(&buf);
 									emit(&Event::FileDownloadData { cid, path, data });
 								}
-								Err(e) => {
-									eprintln!("DEBUG ftdownload read error: cid={cid} path={path}: {e}");
-									emit(&Event::Error { message: format!("Download failed: {e}") });
-								}
+								Err(e) => emit(&Event::Error { message: format!("Download failed: {e}") }),
 							}
 						});
 					}

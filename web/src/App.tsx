@@ -518,11 +518,11 @@ function ChannelTree({
   const children = channels.filter((c) => c.parent === parent).sort((a, b) => a.order - b.order);
   if (children.length === 0) return null;
 
-  const groupIconIds = (client: ClientInfo): number[] =>
+  const clientGroupBadges = (client: ClientInfo): GroupEntry[] =>
     serverGroups
       ? client.serverGroups
-          .map((gid) => serverGroups.find((g) => g.id === gid)?.iconId ?? 0)
-          .filter((iconId) => iconId !== 0)
+          .map((gid) => serverGroups.find((g) => g.id === gid))
+          .filter((g): g is GroupEntry => !!g && g.iconId !== 0)
       : [];
 
   return (
@@ -563,11 +563,25 @@ function ChannelTree({
                     )}
                     <span className="ts-client-icons">
                       <ClientStatusIcons client={c} />
-                      {groupIconIds(c).map((iconId) => {
-                        const base64 = groupIconImages[`/icon_${iconId}`];
-                        return base64 ? (
-                          <img key={iconId} className="ts-group-icon" src={iconDataUrl(base64)} alt="" />
-                        ) : null;
+                      {clientGroupBadges(c).map((g) => {
+                        if (g.iconId >= CUSTOM_ICON_ID_THRESHOLD) {
+                          const base64 = groupIconImages[`/icon_${g.iconId}`];
+                          if (base64) {
+                            return (
+                              <img key={g.id} className="ts-group-icon" src={iconDataUrl(base64)} alt="" title={g.name} />
+                            );
+                          }
+                        }
+                        return (
+                          <span
+                            key={g.id}
+                            className="ts-group-badge"
+                            style={{ background: groupBadgeColor(g.iconId) }}
+                            title={g.name}
+                          >
+                            {g.name.trim().charAt(0).toUpperCase() || "?"}
+                          </span>
+                        );
                       })}
                     </span>
                     {c.id !== ownClientId && (
@@ -1910,6 +1924,22 @@ function sniffImageMime(binary: string): string {
 
 function iconDataUrl(base64: string): string {
   return `data:${sniffImageMime(atob(base64))};base64,${base64}`;
+}
+
+// IDs below this are TeamSpeak's built-in default group icons - they ship
+// inside the official client and were never uploaded to the server's icon
+// filebase, so downloadFile() for them just hangs forever (nothing to send
+// back). We don't have those graphics to embed, so those get a generic
+// colored-letter badge instead; only real custom uploads (id >= threshold)
+// are fetched as actual images.
+const CUSTOM_ICON_ID_THRESHOLD = 1000;
+
+/** Deterministic color for a group's letter badge - same icon id always
+ *  produces the same hue, so a group looks consistent across the tree
+ *  without needing the real (unavailable) TeamSpeak icon graphics. */
+function groupBadgeColor(iconId: number): string {
+  const hue = (iconId * 47) % 360;
+  return `hsl(${hue}, 55%, 45%)`;
 }
 
 /** The icon repository lives under TS3's special "channel 0" - not a real,
@@ -4940,7 +4970,9 @@ function AppInner() {
     if (!serverGroups) return;
     const iconById = new Map(serverGroups.map((g) => [g.id, g.iconId]));
     const wantedIconIds = new Set(
-      clients.flatMap((c) => c.serverGroups.map((gid) => iconById.get(gid) ?? 0)).filter((id) => id !== 0)
+      clients
+        .flatMap((c) => c.serverGroups.map((gid) => iconById.get(gid) ?? 0))
+        .filter((id) => id >= CUSTOM_ICON_ID_THRESHOLD)
     );
     for (const iconId of wantedIconIds) {
       const path = `/icon_${iconId}`;

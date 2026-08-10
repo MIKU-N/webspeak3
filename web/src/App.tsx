@@ -584,18 +584,6 @@ function ChannelTree({
                         );
                       })}
                     </span>
-                    {c.id !== ownClientId && (
-                      <button
-                        className="ts-poke-button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onPokeClient(c.id, c.name);
-                        }}
-                        title={`${t("tree.poke")} ${c.name}`}
-                      >
-                        👉
-                      </button>
-                    )}
                   </div>
                 </li>
               ))}

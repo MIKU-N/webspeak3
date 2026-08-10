@@ -44,11 +44,18 @@ import {
 import { parseSoundpack } from "./soundpack";
 
 // In dev, the gateway runs standalone on its own port. In production it's
-// served from the same origin/port as the web app (single container behind a
-// reverse proxy), so derive the WebSocket URL from the current location.
+// normally served from the same origin/port as the web app (single
+// container behind a reverse proxy), so the WebSocket URL is derived from
+// the current location by default. If the static frontend is hosted
+// separately from the gateway (e.g. a static host for the landing/app
+// bundle, with the gateway staying on your own server), set
+// VITE_GATEWAY_URL at build time to the gateway's public wss:// address
+// instead - the browser will still block a plain ws:// gateway from an
+// https:// page (mixed content), so that address needs real TLS.
 const GATEWAY_URL = import.meta.env.DEV
   ? "ws://localhost:8080"
-  : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
+  : import.meta.env.VITE_GATEWAY_URL ||
+    `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
 
 // One-time migration from the pre-rename "ts-web-client:*" localStorage
 // namespace so existing users don't lose their favorites/preferences.

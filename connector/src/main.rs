@@ -706,6 +706,12 @@ async fn run(args: Args) -> Result<()> {
 	// fetched once.
 	let mut permission_names: std::collections::HashMap<u32, (String, String)> =
 		std::collections::HashMap::new();
+	// notifypermissionlist never fills in `permission_id` on its entries (it's
+	// always None) - the catalog only carries name/description, and the
+	// numeric ID is implicit in each entry's position in the stream (0-based,
+	// incrementing across every chunk in arrival order). This tracks that
+	// running position across chunks while a catalog fetch is in flight.
+	let mut permission_catalog_next_id: u32 = 0;
 	let mut pending_permission_list = false;
 	let mut pending_perm_overview = false;
 	// Raw permoverview entries received before the permission-name cache was
@@ -1388,7 +1394,7 @@ async fn run(args: Args) -> Result<()> {
 						if let Some(own) = state.clients.get(&own_id) {
 							let cid = own.channel.0;
 							let cldbid = own.database_id.0;
-							if permission_names.is_empty() {
+							if permission_names.is_empty() && !pending_permission_list {
 								let packet = OutCommand::new(
 									Direction::C2S,
 									Flags::empty(),
@@ -1548,7 +1554,15 @@ async fn run(args: Args) -> Result<()> {
 							_ => emit(&Event::Error { message: "Invalid ftupload args".into() }),
 						}
 					} else if l == "permissionlist" {
-						if permission_names.is_empty() {
+						if pending_permission_list {
+							// A catalog fetch is already in flight (triggered by an
+							// earlier permlist/permoverview request racing with this
+							// one) - piggyback on it instead of firing a duplicate
+							// "permissionlist" command, which would interleave two
+							// independent chunk streams into the same ordinal counter
+							// and corrupt the id->name mapping.
+							pending_permission_catalog = true;
+						} else if permission_names.is_empty() {
 							let packet = OutCommand::new(
 								Direction::C2S,
 								Flags::empty(),
@@ -1610,7 +1624,7 @@ async fn run(args: Args) -> Result<()> {
 						};
 						match target {
 							Some((scope, id1, id2, packet)) => {
-								if permission_names.is_empty() {
+								if permission_names.is_empty() && !pending_permission_list {
 									let names_packet = OutCommand::new(
 										Direction::C2S,
 										Flags::empty(),
@@ -1919,9 +1933,6 @@ async fn run(args: Args) -> Result<()> {
 				}
 				Some(Ok(StreamItem::MessageResult(handle, result))) => {
 					if let Some(label) = pending_messages.remove(&handle) {
-						if label.starts_with("Permission") {
-							eprintln!("DEBUG MessageResult label={label:?} names_len={} pending_permission_list={pending_permission_list} pending_perm_list={pending_perm_list:?} pending_perm_list_raw_some={} pending_permission_catalog={pending_permission_catalog}", permission_names.len(), pending_perm_list_raw.is_some());
-						}
 						if let Err(e) = result {
 							if e.missing_permission.is_some() {
 								emit(&Event::ServerLog {
@@ -2003,9 +2014,6 @@ async fn run(args: Args) -> Result<()> {
 					}
 				}
 				Some(Ok(StreamItem::MessageEvent(msg))) => {
-					if pending_permission_list || pending_perm_list.is_some() {
-						eprintln!("DEBUG MessageEvent variant={msg:?} pending_permission_list={pending_permission_list} pending_perm_list={pending_perm_list:?} names_len={}", permission_names.len());
-					}
 					if pending_server_log {
 						if let InMessage::ServerLog(log) = &msg {
 							let lines: Vec<String> = log.iter().map(|part| part.log.clone()).collect();
@@ -2109,17 +2117,24 @@ async fn run(args: Args) -> Result<()> {
 						// fits in one), so finalizing after the first one truncates
 						// the name table. The actual end-of-command signal is the
 						// MessageResult for this handle, handled below.
+						//
+						// notifypermissionlist never fills in `permission_id` (always
+						// None here, confirmed live) - unlike e.g.
+						// notifyservergrouppermlist, which does send explicit numeric
+						// IDs. The catalog's IDs are only implicit in each entry's
+						// position in the stream, so they're assigned from a running
+						// counter instead of trusting the (absent) field.
 						if let InMessage::PermList(list) = &msg {
 							for part in list.iter() {
-								if let Some(id) = part.permission_id {
-									permission_names.insert(
-										id.0,
-										(
-											part.permission_name.clone().unwrap_or_default(),
-											part.permission_description.clone().unwrap_or_default(),
-										),
-									);
-								}
+								let id = permission_catalog_next_id;
+								permission_catalog_next_id += 1;
+								permission_names.insert(
+									id,
+									(
+										part.permission_name.clone().unwrap_or_default(),
+										part.permission_description.clone().unwrap_or_default(),
+									),
+								);
 							}
 						}
 					}

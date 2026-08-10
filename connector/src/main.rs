@@ -1919,6 +1919,9 @@ async fn run(args: Args) -> Result<()> {
 				}
 				Some(Ok(StreamItem::MessageResult(handle, result))) => {
 					if let Some(label) = pending_messages.remove(&handle) {
+						if label.starts_with("Permission") {
+							eprintln!("DEBUG MessageResult label={label:?} names_len={} pending_permission_list={pending_permission_list} pending_perm_list={pending_perm_list:?} pending_perm_list_raw_some={} pending_permission_catalog={pending_permission_catalog}", permission_names.len(), pending_perm_list_raw.is_some());
+						}
 						if let Err(e) = result {
 							if e.missing_permission.is_some() {
 								emit(&Event::ServerLog {
@@ -2000,6 +2003,9 @@ async fn run(args: Args) -> Result<()> {
 					}
 				}
 				Some(Ok(StreamItem::MessageEvent(msg))) => {
+					if pending_permission_list || pending_perm_list.is_some() {
+						eprintln!("DEBUG MessageEvent variant={msg:?} pending_permission_list={pending_permission_list} pending_perm_list={pending_perm_list:?} names_len={}", permission_names.len());
+					}
 					if pending_server_log {
 						if let InMessage::ServerLog(log) = &msg {
 							let lines: Vec<String> = log.iter().map(|part| part.log.clone()).collect();

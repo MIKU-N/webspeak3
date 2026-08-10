@@ -330,6 +330,7 @@ interface ClientInfo {
   databaseId: number;
   channelGroup: number;
   serverGroups: number[];
+  hasTalkPower: boolean;
 }
 
 interface GroupEntry {
@@ -533,7 +534,7 @@ function ChannelTree({
                 <li key={c.id}>
                   <div
                     className={`ts-row ts-client-row${c.id === ownClientId ? " ts-self" : ""}${
-                      talkers.has(c.id) ? " ts-talking" : ""
+                      talkers.has(c.id) && c.hasTalkPower ? " ts-talking" : ""
                     }`}
                     onClick={c.id === ownClientId ? undefined : () => onOpenPrivateChat(c.id, c.name)}
                     onContextMenu={(e) => onClientContextMenu(e, c.id, c.name, c.id === ownClientId)}
@@ -5839,7 +5840,9 @@ function AppInner() {
   const inputMuted = ownClient?.inputMuted ?? false;
   const outputMuted = ownClient?.outputMuted ?? false;
   const displayTalkers =
-    selfActive && !inputMuted && ownClient ? new Set(talkers).add(ownClient.id) : talkers;
+    selfActive && !inputMuted && ownClient?.hasTalkPower
+      ? new Set(talkers).add(ownClient.id)
+      : talkers;
   const t = useT();
 
   return (

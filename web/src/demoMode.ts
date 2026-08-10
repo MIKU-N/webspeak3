@@ -33,6 +33,7 @@ interface DemoClient {
   databaseId: number;
   channelGroup: number;
   serverGroups: number[];
+  hasTalkPower: boolean;
 }
 
 const DEMO_CHANNELS: DemoChannel[] = [
@@ -56,10 +57,10 @@ const DEMO_SERVER_GROUPS = [
 ];
 
 const DEMO_NPCS: DemoClient[] = [
-  { id: 102, channel: 1, name: "Alex", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: true, country: "US", uid: "demo-uid-alex", databaseId: 2, channelGroup: 2, serverGroups: [2] },
-  { id: 103, channel: 2, name: "Sam", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "GB", uid: "demo-uid-sam", databaseId: 3, channelGroup: 4, serverGroups: [4] },
-  { id: 104, channel: 2, name: "Jordan", inputMuted: true, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "CA", uid: "demo-uid-jordan", databaseId: 4, channelGroup: 4, serverGroups: [4] },
-  { id: 105, channel: 3, name: "Riley", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: true, awayMessage: "brb, grabbing coffee", isChannelCommander: false, country: "DE", uid: "demo-uid-riley", databaseId: 5, channelGroup: 4, serverGroups: [3, 4] },
+  { id: 102, channel: 1, name: "Alex", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: true, country: "US", uid: "demo-uid-alex", databaseId: 2, channelGroup: 2, serverGroups: [2], hasTalkPower: true },
+  { id: 103, channel: 2, name: "Sam", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "GB", uid: "demo-uid-sam", databaseId: 3, channelGroup: 4, serverGroups: [4], hasTalkPower: true },
+  { id: 104, channel: 2, name: "Jordan", inputMuted: true, outputMuted: false, inputHardwareEnabled: true, away: false, awayMessage: "", isChannelCommander: false, country: "CA", uid: "demo-uid-jordan", databaseId: 4, channelGroup: 4, serverGroups: [4], hasTalkPower: true },
+  { id: 105, channel: 3, name: "Riley", inputMuted: false, outputMuted: false, inputHardwareEnabled: true, away: true, awayMessage: "brb, grabbing coffee", isChannelCommander: false, country: "DE", uid: "demo-uid-riley", databaseId: 5, channelGroup: 4, serverGroups: [3, 4], hasTalkPower: true },
 ];
 
 interface DemoFileEntry {
@@ -617,6 +618,7 @@ export class DemoSocket {
       databaseId: 1,
       channelGroup: this.selfChannelGroup,
       serverGroups: [...this.selfServerGroups],
+      hasTalkPower: true,
     };
     this.emit({ type: "channels", channels: DEMO_CHANNELS, clients: [self, ...DEMO_NPCS] });
   }

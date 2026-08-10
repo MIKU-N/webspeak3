@@ -36,6 +36,7 @@ export interface ClientInfo {
   databaseId: number;
   channelGroup: number;
   serverGroups: number[];
+  hasTalkPower: boolean;
 }
 
 export interface GroupEntry {
@@ -233,6 +234,7 @@ export class Ts3Connection {
           database_id: number;
           channel_group: number;
           server_groups: number[];
+          has_talk_power: boolean;
         }
 
         interface RawChannelInfo {
@@ -387,6 +389,7 @@ export class Ts3Connection {
               databaseId: c.database_id,
               channelGroup: c.channel_group,
               serverGroups: c.server_groups,
+              hasTalkPower: c.has_talk_power,
             })),
           });
         } else if (event.type === "privateMessage") {

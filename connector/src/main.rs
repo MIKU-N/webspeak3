@@ -88,6 +88,12 @@ struct ClientInfo {
 	database_id: u64,
 	channel_group: u64,
 	server_groups: Vec<u64>,
+	/// Whether this client is currently allowed to talk in their channel -
+	/// `false` in a moderated channel (one with a talk power requirement)
+	/// when the client's talk power is below that requirement and they
+	/// haven't been individually granted talk power. Always `true` in a
+	/// non-moderated channel.
+	has_talk_power: bool,
 }
 
 /// Payload for the "serveredit " stdin command - every field is optional so
@@ -535,21 +541,32 @@ fn snapshot(con: &data::Connection) -> Event {
 	let clients = con
 		.clients
 		.values()
-		.map(|c| ClientInfo {
-			id: c.id.0,
-			channel: c.channel.0,
-			name: c.name.clone(),
-			input_muted: c.input_muted,
-			output_muted: c.output_muted,
-			input_hardware_enabled: c.input_hardware_enabled,
-			away: c.away_message.is_some(),
-			away_message: c.away_message.clone().unwrap_or_default(),
-			is_channel_commander: c.is_channel_commander,
-			country: c.country_code.clone(),
-			uid: c.uid.as_ref().map(|u| u.to_string()).unwrap_or_default(),
-			database_id: c.database_id.0,
-			channel_group: c.channel_group.0,
-			server_groups: c.server_groups.iter().map(|g| g.0).collect(),
+		.map(|c| {
+			// A channel with no talk power requirement at all (the common
+			// case) is never moderated, so everyone can talk regardless of
+			// their own talk power - matches tsclientlib's own
+			// intern_can_send_audio logic for the moderated-channel check.
+			let has_talk_power = match con.channels.get(&c.channel).and_then(|ch| ch.needed_talk_power) {
+				Some(needed) => c.talk_power_granted || c.talk_power >= needed,
+				None => true,
+			};
+			ClientInfo {
+				id: c.id.0,
+				channel: c.channel.0,
+				name: c.name.clone(),
+				input_muted: c.input_muted,
+				output_muted: c.output_muted,
+				input_hardware_enabled: c.input_hardware_enabled,
+				away: c.away_message.is_some(),
+				away_message: c.away_message.clone().unwrap_or_default(),
+				is_channel_commander: c.is_channel_commander,
+				country: c.country_code.clone(),
+				uid: c.uid.as_ref().map(|u| u.to_string()).unwrap_or_default(),
+				database_id: c.database_id.0,
+				channel_group: c.channel_group.0,
+				server_groups: c.server_groups.iter().map(|g| g.0).collect(),
+				has_talk_power,
+			}
 		})
 		.collect();
 	Event::Channels { channels, clients }

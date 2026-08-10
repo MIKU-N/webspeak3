@@ -582,7 +582,10 @@
 }
 
 .ts-poke-button {
-  margin-left: auto;
+  /* No margin-left: auto here - .ts-client-icons already has one, and two
+     auto margins in the same row split the free space between them (leaving
+     a gap before the icons instead of pushing the whole trailing group
+     flush to the edge). Let the poke button just trail the icon cluster. */
   background: transparent;
   border: none;
   cursor: pointer;

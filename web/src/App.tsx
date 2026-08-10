@@ -5839,7 +5839,7 @@ function AppInner() {
   const inputMuted = ownClient?.inputMuted ?? false;
   const outputMuted = ownClient?.outputMuted ?? false;
   const displayTalkers =
-    selfActive && ownClient ? new Set(talkers).add(ownClient.id) : talkers;
+    selfActive && !inputMuted && ownClient ? new Set(talkers).add(ownClient.id) : talkers;
   const t = useT();
 
   return (

@@ -336,6 +336,7 @@ interface ClientInfo {
 interface GroupEntry {
   id: number;
   name: string;
+  iconId: number;
 }
 
 interface PermissionOverviewEntry {
@@ -463,6 +464,9 @@ function ClientStatusIcons({ client }: { client: ClientInfo }) {
       {client.isChannelCommander && <span title={t("tree.channelCommander")}>⭐</span>}
       {client.away && <span title={t("tree.away")}>💤</span>}
       {(client.inputMuted || !client.inputHardwareEnabled) && <span title={t("tree.micMuted")}>🔇</span>}
+      {!client.inputMuted && client.inputHardwareEnabled && !client.hasTalkPower && (
+        <span title={t("tree.noTalkPower")}>🔒</span>
+      )}
       {client.outputMuted && <span title={t("tree.soundMuted")}>🔕</span>}
     </span>
   );
@@ -485,6 +489,8 @@ function ChannelTree({
   parent,
   ownClientId,
   talkers,
+  serverGroups,
+  groupIconImages,
   selected,
   onSelectItem,
   onSwitchChannel,
@@ -498,6 +504,8 @@ function ChannelTree({
   parent: number;
   ownClientId: number | null;
   talkers: Set<number>;
+  serverGroups: GroupEntry[] | null;
+  groupIconImages: Record<string, string>;
   selected: SelectedItem | null;
   onSelectItem: (item: SelectedItem) => void;
   onSwitchChannel: (channelId: number) => void;
@@ -509,6 +517,13 @@ function ChannelTree({
   const t = useT();
   const children = channels.filter((c) => c.parent === parent).sort((a, b) => a.order - b.order);
   if (children.length === 0) return null;
+
+  const groupIconIds = (client: ClientInfo): number[] =>
+    serverGroups
+      ? client.serverGroups
+          .map((gid) => serverGroups.find((g) => g.id === gid)?.iconId ?? 0)
+          .filter((iconId) => iconId !== 0)
+      : [];
 
   return (
     <ul className="ts-tree-list">
@@ -547,6 +562,12 @@ function ChannelTree({
                       <span className="ts-client-away-message">({c.awayMessage})</span>
                     )}
                     <ClientStatusIcons client={c} />
+                    {groupIconIds(c).map((iconId) => {
+                      const base64 = groupIconImages[`/icon_${iconId}`];
+                      return base64 ? (
+                        <img key={iconId} className="ts-group-icon" src={iconDataUrl(base64)} alt="" />
+                      ) : null;
+                    })}
                     {c.id !== ownClientId && (
                       <button
                         className="ts-poke-button"
@@ -569,6 +590,8 @@ function ChannelTree({
             parent={channel.id}
             ownClientId={ownClientId}
             talkers={talkers}
+            serverGroups={serverGroups}
+            groupIconImages={groupIconImages}
             selected={selected}
             onSelectItem={onSelectItem}
             onSwitchChannel={onSwitchChannel}
@@ -4899,6 +4922,32 @@ function AppInner() {
     }
   }, [serverIconsOpen, serverIconEntries, serverIconImages]);
 
+  // Server group badges next to client names need the group list (for the
+  // id->icon lookup) even if the user never opens a group-related dialog -
+  // fetch it once per connection instead of only on demand.
+  useEffect(() => {
+    if (!connected || serverGroups) return;
+    socketRef.current?.send(JSON.stringify({ type: "getServerGroupList" }));
+  }, [connected, serverGroups]);
+
+  // Same icon-file cache as the server icons dialog (fileDownloadData for
+  // cid 0 always lands in serverIconImages, regardless of who asked) - fetch
+  // any group icon referenced by a currently visible client that isn't
+  // cached yet.
+  useEffect(() => {
+    if (!serverGroups) return;
+    const iconById = new Map(serverGroups.map((g) => [g.id, g.iconId]));
+    const wantedIconIds = new Set(
+      clients.flatMap((c) => c.serverGroups.map((gid) => iconById.get(gid) ?? 0)).filter((id) => id !== 0)
+    );
+    for (const iconId of wantedIconIds) {
+      const path = `/icon_${iconId}`;
+      if (!(path in serverIconImages)) {
+        socketRef.current?.send(JSON.stringify({ type: "downloadFile", channelId: 0, path }));
+      }
+    }
+  }, [clients, serverGroups, serverIconImages]);
+
   useEffect(() => {
     if (!connected) {
       setWhisperChannelIds(new Set());
@@ -7198,6 +7247,8 @@ function AppInner() {
                   parent={0}
                   ownClientId={ownClient?.id ?? null}
                   talkers={displayTalkers}
+                  serverGroups={serverGroups}
+                  groupIconImages={serverIconImages}
                   selected={selected}
                   onSelectItem={handleSelectItem}
                   onSwitchChannel={handleSwitchChannel}

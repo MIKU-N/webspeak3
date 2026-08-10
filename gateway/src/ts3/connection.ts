@@ -42,6 +42,7 @@ export interface ClientInfo {
 export interface GroupEntry {
   id: number;
   name: string;
+  iconId: number;
 }
 
 export interface PermissionOverviewEntry {
@@ -338,8 +339,8 @@ export class Ts3Connection {
               message: string;
               timestamp: string;
             }
-          | { type: "channelGroupList"; entries: { id: number; name: string }[] }
-          | { type: "serverGroupList"; entries: { id: number; name: string }[] }
+          | { type: "channelGroupList"; entries: GroupEntry[] }
+          | { type: "serverGroupList"; entries: GroupEntry[] }
           | {
               type: "permissionOverview";
               entries: { name: string; description: string; value: number; negated: boolean; skip: boolean }[];

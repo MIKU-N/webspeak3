@@ -368,6 +368,7 @@ struct PermissionCatalogEntry {
 struct GroupEntry {
 	id: u64,
 	name: String,
+	icon_id: u32,
 }
 
 #[derive(Serialize, Clone)]
@@ -1970,7 +1971,7 @@ async fn run(args: Args) -> Result<()> {
 							let mut entries: Vec<GroupEntry> = state
 								.channel_groups
 								.values()
-								.map(|g| GroupEntry { id: g.id.0, name: g.name.clone() })
+								.map(|g| GroupEntry { id: g.id.0, name: g.name.clone(), icon_id: g.icon.0 })
 								.collect();
 							entries.sort_by_key(|g| g.id);
 							emit(&Event::ChannelGroupList { entries });
@@ -1980,7 +1981,7 @@ async fn run(args: Args) -> Result<()> {
 							let mut entries: Vec<GroupEntry> = state
 								.server_groups
 								.values()
-								.map(|g| GroupEntry { id: g.id.0, name: g.name.clone() })
+								.map(|g| GroupEntry { id: g.id.0, name: g.name.clone(), icon_id: g.icon.0 })
 								.collect();
 							entries.sort_by_key(|g| g.id);
 							emit(&Event::ServerGroupList { entries });
@@ -2110,7 +2111,7 @@ async fn run(args: Args) -> Result<()> {
 						if let InMessage::ChannelGroupList(list) = &msg {
 							let entries: Vec<GroupEntry> = list
 								.iter()
-								.map(|part| GroupEntry { id: part.channel_group.0, name: part.name.clone() })
+								.map(|part| GroupEntry { id: part.channel_group.0, name: part.name.clone(), icon_id: part.icon.0 })
 								.collect();
 							emit(&Event::ChannelGroupList { entries });
 							pending_channel_group_list = false;
@@ -2120,7 +2121,7 @@ async fn run(args: Args) -> Result<()> {
 						if let InMessage::ServerGroupList(list) = &msg {
 							let entries: Vec<GroupEntry> = list
 								.iter()
-								.map(|part| GroupEntry { id: part.server_group_id.0, name: part.name.clone() })
+								.map(|part| GroupEntry { id: part.server_group_id.0, name: part.name.clone(), icon_id: part.icon.0 })
 								.collect();
 							emit(&Event::ServerGroupList { entries });
 							pending_server_group_list = false;

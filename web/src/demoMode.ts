@@ -43,17 +43,17 @@ const DEMO_CHANNELS: DemoChannel[] = [
 ];
 
 const DEMO_CHANNEL_GROUPS = [
-  { id: 1, name: "Channel Admin" },
-  { id: 2, name: "Operator" },
-  { id: 3, name: "Voice" },
-  { id: 4, name: "Guest" },
+  { id: 1, name: "Channel Admin", iconId: 0 },
+  { id: 2, name: "Operator", iconId: 0 },
+  { id: 3, name: "Voice", iconId: 0 },
+  { id: 4, name: "Guest", iconId: 0 },
 ];
 
 const DEMO_SERVER_GROUPS = [
-  { id: 1, name: "Server Admin" },
-  { id: 2, name: "Moderator" },
-  { id: 3, name: "Trusted" },
-  { id: 4, name: "Guest" },
+  { id: 1, name: "Server Admin", iconId: 0 },
+  { id: 2, name: "Moderator", iconId: 0 },
+  { id: 3, name: "Trusted", iconId: 0 },
+  { id: 4, name: "Guest", iconId: 0 },
 ];
 
 const DEMO_NPCS: DemoClient[] = [

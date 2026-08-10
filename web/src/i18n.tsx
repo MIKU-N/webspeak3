@@ -291,6 +291,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "tree.channelCommander": "Channel Commander",
     "tree.away": "Abwesend",
     "tree.micMuted": "Mikrofon stummgeschaltet",
+    "tree.noTalkPower": "Keine Redeerlaubnis in diesem Channel",
     "tree.soundMuted": "Ton stummgeschaltet (deafened)",
 
     "chat.server": "Server",
@@ -791,6 +792,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "tree.channelCommander": "Channel commander",
     "tree.away": "Away",
     "tree.micMuted": "Microphone muted",
+    "tree.noTalkPower": "No talk power in this channel",
     "tree.soundMuted": "Sound muted (deafened)",
 
     "chat.server": "Server",

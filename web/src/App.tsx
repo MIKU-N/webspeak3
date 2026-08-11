@@ -52,10 +52,14 @@ import { parseSoundpack } from "./soundpack";
 // VITE_GATEWAY_URL at build time to the gateway's public wss:// address
 // instead - the browser will still block a plain ws:// gateway from an
 // https:// page (mixed content), so that address needs real TLS.
+// Either way the gateway's WebSocketServer only listens on /ws (see
+// gateway/src/index.ts), so that path always gets appended here - a
+// VITE_GATEWAY_URL override only needs to name the host, not the path.
 const GATEWAY_URL = import.meta.env.DEV
   ? "ws://localhost:8080"
-  : import.meta.env.VITE_GATEWAY_URL ||
-    `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
+  : import.meta.env.VITE_GATEWAY_URL
+    ? `${import.meta.env.VITE_GATEWAY_URL.replace(/\/$/, "")}/ws`
+    : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
 
 // One-time migration from the pre-rename "ts-web-client:*" localStorage
 // namespace so existing users don't lose their favorites/preferences.

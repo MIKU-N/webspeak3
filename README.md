@@ -25,7 +25,7 @@
   <a href="https://github.com/Moepchi/webspeak3/issues">🐛 Report Bug</a>
 </p>
 
-> The [live demo](https://demo.webspeak3.de) runs entirely in your browser with simulated data — no real TeamSpeak server involved. It's there to show the UI, not the real connection. A GitHub Pages mirror also stays up as a free fallback: [moepchi.github.io/webspeak3](https://moepchi.github.io/webspeak3/).
+> The [live demo](https://demo.webspeak3.de) runs entirely in your browser with simulated data — no real TeamSpeak server involved. It's there to show the UI, not the real connection.
 
 ---
 

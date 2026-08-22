@@ -90,9 +90,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Resolve primary image reference
+        id: image
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          image_ref="$(printf '%s\n' "$IMAGE_TAGS" | head -n 1)"
+          echo "ref=$image_ref" >> "$GITHUB_OUTPUT"
+
       - name: Smoke test container
         env:
-          TEST_IMAGE: ${{ steps.meta.outputs.version }}
+          TEST_IMAGE: ${{ steps.image.outputs.ref }}
         run: |
           docker run --detach --name webspeak3-smoke --publish 127.0.0.1:18080:8080 "$TEST_IMAGE"
           trap 'docker logs webspeak3-smoke; docker rm --force webspeak3-smoke' EXIT
@@ -107,7 +115,7 @@ jobs:
       - name: Scan image for critical vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ steps.meta.outputs.version }}
+          image-ref: ${{ steps.image.outputs.ref }}
           format: table
           exit-code: "1"
           ignore-unfixed: true

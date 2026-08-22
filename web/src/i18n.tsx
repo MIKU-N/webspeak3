@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { zhCN } from "./locales/zh-CN";
 
-export type Lang = "de" | "en";
+export type Lang = "de" | "en" | "zh-CN";
 export type LangPref = "auto" | Lang;
 
 const LANGUAGE_KEY = "webspeak3:language";
@@ -239,6 +240,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "app.language.auto": "Systemvorgabe",
     "app.language.de": "Deutsch",
     "app.language.en": "English",
+    "app.language.zh-CN": "简体中文",
 
     "playback.title": "Wiedergabe",
     "playback.subtitle": "Ändern der Wiedergabeeinstellungen",
@@ -740,6 +742,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "app.language.auto": "System default",
     "app.language.de": "Deutsch",
     "app.language.en": "English",
+    "app.language.zh-CN": "简体中文",
 
     "playback.title": "Playback",
     "playback.subtitle": "Change your playback settings",
@@ -1012,11 +1015,14 @@ const translations: Record<Lang, Record<string, string>> = {
     "nachrichten.add": "Add",
     "nachrichten.delete": "Delete",
   },
+  "zh-CN": zhCN,
 };
 
 function detectSystemLang(): Lang {
   const nav = typeof navigator !== "undefined" ? navigator.language : "en";
-  return nav?.toLowerCase().startsWith("de") ? "de" : "en";
+  const normalized = nav?.toLowerCase() ?? "en";
+  if (normalized.startsWith("zh")) return "zh-CN";
+  return normalized.startsWith("de") ? "de" : "en";
 }
 
 export function resolveLang(pref: LangPref): Lang {
@@ -1025,7 +1031,7 @@ export function resolveLang(pref: LangPref): Lang {
 
 export function loadLangPref(): LangPref {
   const raw = localStorage.getItem(LANGUAGE_KEY);
-  return raw === "de" || raw === "en" || raw === "auto" ? raw : "auto";
+  return raw === "de" || raw === "en" || raw === "zh-CN" || raw === "auto" ? raw : "auto";
 }
 
 export function saveLangPref(pref: LangPref) {
@@ -1053,6 +1059,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveLangPref(langPref);
   }, [langPref]);
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   const t: TranslateFn = (key, vars) =>
     interpolate(translations[lang][key] ?? translations.en[key] ?? key, vars);
